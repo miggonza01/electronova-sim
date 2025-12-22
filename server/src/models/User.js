@@ -1,0 +1,51 @@
+// server/src/models/User.js
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
+const UserSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
+  role: {
+    type: String,
+    enum: ['student', 'admin'],
+    default: 'student'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// --- CORRECCIÓN AQUÍ ---
+// En Mongoose moderno + Async, NO usamos 'next'.
+// El sistema espera a que la promesa se resuelva sola.
+UserSchema.pre('save', async function() {
+  // Si la contraseña no se modificó, no hacemos nada y salimos (return)
+  if (!this.isModified('password')) return;
+  
+  // Generar el hash
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Método para comparar contraseñas al hacer Login
+UserSchema.methods.matchPassword = async function(enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+module.exports = mongoose.model('User', UserSchema);
