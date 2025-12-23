@@ -6,8 +6,6 @@ const Company = require('../models/Company');
 // @route   POST /api/decisions
 exports.submitDecision = async (req, res) => {
   try {
-    // 1. Identificar al usuario y su empresa
-    // (El usuario viene del Token JWT que configuramos antes)
     const userId = req.user.id;
     const company = await Company.findOne({ user: userId });
 
@@ -15,10 +13,19 @@ exports.submitDecision = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Empresa no encontrada' });
     }
 
-    const { price, marketing, production, logistics } = req.body;
+    // --- CORRECCIÓN CRÍTICA AQUÍ ---
+    // Nos aseguramos de leer TODOS los campos del formulario
+    const { 
+      price, 
+      marketing, 
+      production, 
+      procurement, // <--- ESTE FALTABA
+      logistics 
+    } = req.body;
+    
     const currentRound = company.currentRound;
 
-    // 2. Validaciones Básicas
+    // Validaciones Básicas
     if (price <= 0) {
       return res.status(400).json({ success: false, error: 'El precio debe ser mayor a 0' });
     }
@@ -26,14 +33,14 @@ exports.submitDecision = async (req, res) => {
       return res.status(400).json({ success: false, error: 'El marketing no puede ser negativo' });
     }
 
-    // 3. Guardar o Actualizar la Decisión
-    // Usamos findOneAndUpdate con "upsert: true" (Si existe actualiza, si no crea)
+    // Guardar o Actualizar
     const decision = await Decision.findOneAndUpdate(
       { companyId: company._id, round: currentRound },
       {
         price,
         marketing,
-        production,
+        production,   // Asegúrate de que esto se guarde
+        procurement,  // <--- Y ESTO TAMBIÉN
         logistics,
         submittedAt: Date.now()
       },
@@ -48,7 +55,6 @@ exports.submitDecision = async (req, res) => {
 
   } catch (error) {
     console.error(error);
-    // Manejo de error de duplicados (aunque upsert lo evita, es buena práctica)
     if (error.code === 11000) {
       return res.status(400).json({ success: false, error: 'Ya existe una decisión para esta ronda' });
     }

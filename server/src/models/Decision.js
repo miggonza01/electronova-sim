@@ -11,43 +11,35 @@ const DecisionSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  // --- DECISIONES COMERCIALES ---
   price: {
     type: mongoose.Schema.Types.Decimal128,
     required: true,
-    validate: {
-      validator: (v) => v > 0,
-      message: 'El precio debe ser positivo.'
-    }
+    validate: { validator: (v) => v > 0, message: 'Precio positivo requerido' }
   },
   marketing: {
     type: mongoose.Schema.Types.Decimal128,
     default: 0.00
   },
-  // --- DECISIONES DE PRODUCCIÓN ---
+  // --- VERIFICA QUE ESTO ESTÉ AQUÍ ---
+  procurement: {
+    units: { type: Number, default: 0 } // <--- CRÍTICO
+  },
   production: {
     units: { type: Number, default: 0 },
-    // Aquí podríamos agregar compra de materia prima en el futuro
   },
-  // --- DECISIONES LOGÍSTICAS ---
-  // Array de envíos: ¿Cuántas unidades muevo y a dónde?
+  // -----------------------------------
   logistics: [
     {
-      destination: { type: String, enum: ['Norte', 'Sur', 'Centro'] },
+      destination: { type: String },
       units: Number,
-      method: { type: String, enum: ['Aereo', 'Terrestre'] }
+      method: { type: String }
     }
   ],
-  submittedAt: {
-    type: Date,
-    default: Date.now
-  }
+  submittedAt: { type: Date, default: Date.now }
 });
 
-// Evitar duplicados: Una empresa solo puede tener UNA decisión por ronda
+// ... resto del archivo (indices y toJSON) ...
 DecisionSchema.index({ companyId: 1, round: 1 }, { unique: true });
-
-// Conversión de Decimales para JSON
 DecisionSchema.set('toJSON', {
   transform: (doc, ret) => {
     if (ret.price) ret.price = parseFloat(ret.price.toString());

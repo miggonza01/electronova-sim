@@ -3,10 +3,21 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 
 const AnalyticsChart = ({ history }) => {
   
-  // Si no hay historia (Ronda 1), mostramos datos vacíos o iniciales
-  const data = history && history.length > 0 ? history : [
-    { round: 0, cash: 500000 } // Punto de partida
-  ];
+  // PREPARACIÓN DE DATOS ROBUSTA
+  // 1. Definimos el Punto Cero (Inicio del juego)
+  const initialPoint = { 
+    round: 0, 
+    cash: 500000, // Capital inicial base
+    wsc: 0 
+  };
+
+  // 2. Combinamos: Si hay historia, la usamos. Si no, solo el punto inicial.
+  // Usamos el "Spread Operator" (...) para crear un nuevo array limpio.
+  let chartData = [initialPoint];
+
+  if (history && history.length > 0) {
+    chartData = [...chartData, ...history];
+  }
 
   return (
     <div className="bg-corporate-slate p-6 rounded-xl border border-white/5 shadow-lg">
@@ -17,7 +28,7 @@ const AnalyticsChart = ({ history }) => {
       
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data}>
+          <AreaChart data={chartData}>
             <defs>
               <linearGradient id="colorCash" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
@@ -38,7 +49,10 @@ const AnalyticsChart = ({ history }) => {
               tick={{fill: '#94A3B8', fontSize: 12}}
               tickLine={false}
               axisLine={false}
+              // Formateamos para que $500,000 se vea como $500k
               tickFormatter={(value) => `$${(value/1000).toFixed(0)}k`}
+              // Forzamos que el eje Y siempre incluya el 0 y el 500k para perspectiva
+              domain={['auto', 'auto']} 
             />
             <Tooltip 
               contentStyle={{ backgroundColor: '#1E293B', borderColor: '#334155', color: '#fff' }}
@@ -52,6 +66,7 @@ const AnalyticsChart = ({ history }) => {
               strokeWidth={3}
               fillOpacity={1} 
               fill="url(#colorCash)" 
+              animationDuration={1500}
             />
           </AreaChart>
         </ResponsiveContainer>

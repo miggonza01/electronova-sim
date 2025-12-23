@@ -185,6 +185,7 @@ const DashboardPage = () => {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {company.inventory && company.inventory.length > 0 ? (
+                  // CASO 1: HAY INVENTARIO
                   company.inventory.map((batch, index) => (
                     <tr key={index} className="hover:bg-white/5 transition-colors">
                       <td className="px-6 py-4 font-mono text-corporate-blue">{batch.batchId}</td>
@@ -201,8 +202,25 @@ const DashboardPage = () => {
                     </tr>
                   ))
                 ) : (
+                  // CASO 2: NO HAY INVENTARIO (Analizamos por qué)
                   <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-corporate-muted italic">No hay inventario disponible.</td>
+                    <td colSpan="5" className="px-6 py-12 text-center">
+                      {company.history && company.history.length > 0 && company.history[company.history.length - 1].unitsSold > 0 ? (
+                        // Subcaso A: Hubo ventas en la última ronda -> SOLD OUT
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-corporate-success font-bold text-lg">¡STOCK AGOTADO (SOLD OUT)!</span>
+                          <p className="text-corporate-muted text-sm">
+                            Excelente gestión comercial. Vendiste todo tu inventario en la Ronda anterior.
+                            <br/>¡Es urgente producir más para no perder clientes!
+                          </p>
+                        </div>
+                      ) : (
+                        // Subcaso B: No hubo ventas -> FÁBRICA PARADA
+                        <div className="text-corporate-muted italic">
+                          Almacén vacío. No has iniciado producción o compras.
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 )}
               </tbody>

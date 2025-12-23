@@ -42,15 +42,25 @@ const seedData = async () => {
       role: 'student'
     });
 
-    // 5. Crear Empresa del Estudiante
+    // 5. Crear Empresa del Estudiante (INICIO LIMPIO)
     await Company.create({
       user: student._id,
       name: 'Alpha Industries',
-      financials: { cash: 500000.00 },
-      inventory: [
-        { batchId: 'B-INIT', units: 1000, unitCost: 50.00, age: 0 }
-      ]
+      financials: { 
+        cash: 500000.00,
+        assets: 500000.00,
+        liabilities: 0.00
+      },
+      rawMaterials: {
+        units: 0,
+        averageCost: 0
+      },
+      // INVENTARIO VACÍO AL INICIO para probar producción real
+      inventory: [], 
+      history: [], // Historial vacío
+      currentRound: 1 // Empezamos en Ronda 1
     });
+    
     console.log('Estudiante y Empresa creados.');
 
     process.exit();
