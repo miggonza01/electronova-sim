@@ -27,19 +27,38 @@ const app = express();
 const server = http.createServer(app);
 
 // --- CONFIGURACIÓN EXPLÍCITA DE CORS PARA PERMITIR AL FRONTEND ---
-// Configuración de CORS para Express: permite solicitudes solo desde el frontend en desarrollo
-// Esto es crucial para seguridad y para evitar errores de política de mismo origen
+// Definimos los orígenes permitidos en un array para mantener la configuración centralizada
+// Esto permite que la aplicación funcione tanto en desarrollo como en producción
+const allowedOrigins = [
+  "http://localhost:5173", // Para desarrollo local (frontend de Vite en puerto 5173)
+  "https://electronova-sim.vercel.app" // URL exacta del frontend desplegado en Vercel (producción)
+  // NOTA: Para agregar más orígenes en el futuro, añádelos a este array
+];
+
+// Configuración de CORS para Express con función de validación dinámica
+// En lugar de un string fijo, usamos una función que valida contra la lista de orígenes permitidos
 app.use(cors({
-  origin: 'http://localhost:5173', // Dirección exacta del frontend (Vite en desarrollo)
+  origin: (origin, callback) => {
+    // Permitir peticiones sin origen (como herramientas de testing: Postman, curl, etc.)
+    // O si el origen está incluido en la lista de orígenes permitidos
+    if (!origin || allowedOrigins.includes(origin)) {
+      // Primero parámetro null: sin error, segundo parámetro true: origen permitido
+      callback(null, true);
+    } else {
+      // Si el origen no está en la lista, rechazar la petición con error
+      callback(new Error('Origen no permitido por la política CORS'));
+    }
+  },
   credentials: true // Permite enviar cookies y headers de autenticación si son necesarios
 }));
 
 // --- CONFIGURACIÓN DE SOCKET.IO CON CORS ESPECÍFICO ---
 // Inicializar Socket.IO sobre el servidor HTTP con configuración de CORS
 // IMPORTANTE: Socket.IO necesita su propia configuración de CORS separada de Express
+// Usamos el mismo array 'allowedOrigins' para mantener consistencia entre HTTP y WebSockets
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Mismo origen que el frontend - ¡DEBE COINCIDIR!
+    origin: allowedOrigins, // Mismos orígenes permitidos que para Express - ¡DEBE COINCIDIR!
     methods: ["GET", "POST"] // Métodos HTTP permitidos para conexiones WebSocket
   }
 });
@@ -93,16 +112,15 @@ connectDB().then(() => {
   // IMPORTANTE: Usar server.listen (no app.listen) para que Socket.IO funcione correctamente
   server.listen(PORT, () => {
     console.log(`>>> SERVIDOR + SOCKETS CORRIENDO EN PUERTO: ${PORT}`);
-    console.log(`>>> CORS configurado para: http://localhost:5173`);
+    console.log(`>>> CORS configurado para: ${allowedOrigins.join(', ')}`);
   });
 });
 
-// NOTAS IMPORTANTES SOBRE LA CONFIGURACIÓN:
-// 1. Origen específico: Al especificar 'http://localhost:5173' en lugar de '*', 
-//    aumentamos la seguridad al rechazar solicitudes de otros dominios.
-// 2. Coherencia: La configuración de CORS debe ser idéntica en Express y Socket.IO
-//    para que ambos funcionen correctamente con el mismo frontend.
-// 3. Desarrollo vs Producción: En producción, cambiar 'http://localhost:5173' 
-//    por la URL real del frontend desplegado.
-// 4. Credenciales: 'credentials: true' permite cookies de sesión/autorización
-//    si la autenticación lo requiere.
+// NOTAS IMPORTANTES SOBRE LA CONFIGURACIÓN ACTUALIZADA:
+// 1. ORÍGENES MÚLTIPLES: Ahora soporta tanto desarrollo (localhost) como producción (Vercel)
+// 2. VALIDACIÓN DINÁMICA: La función 'origin' en CORS permite validar dinámicamente cada petición
+// 3. CONSISTENCIA: La misma lista 'allowedOrigins' se usa para Express y Socket.IO
+// 4. SEGURIDAD MEJORADA: Solo los orígenes explícitamente listados son permitidos
+// 5. FLEXIBILIDAD: Para añadir nuevos orígenes (ej: dominio personalizado), agregar al array
+// 6. HERRAMIENTAS DE DESARROLLO: Se permiten peticiones sin origen (null) para testing con Postman/curl
+// 7. CREDENCIALES: 'credentials: true' permite cookies de sesión/autorización si la autenticación lo requiere
