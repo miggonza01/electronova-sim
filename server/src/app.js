@@ -31,6 +31,7 @@ const server = http.createServer(app);
 // Esto permite que la aplicación funcione tanto en desarrollo como en producción
 const allowedOrigins = [
   "http://localhost:5173", // Para desarrollo local (frontend de Vite en puerto 5173)
+  "http://localhost:4173", // Vite Preview
   "https://electronova-sim.vercel.app" // URL exacta del frontend desplegado en Vercel (producción)
   // NOTA: Para agregar más orígenes en el futuro, añádelos a este array
 ];
@@ -45,6 +46,7 @@ app.use(cors({
       // Primero parámetro null: sin error, segundo parámetro true: origen permitido
       callback(null, true);
     } else {
+      console.log("Bloqueado por CORS:", origin); // Log para depurar en Render si falla
       // Si el origen no está en la lista, rechazar la petición con error
       callback(new Error('Origen no permitido por la política CORS'));
     }

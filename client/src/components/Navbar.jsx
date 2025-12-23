@@ -1,6 +1,6 @@
 // client/src/components/Navbar.jsx
 import { useAuth } from '../context/AuthContext';
-import { LogOut, BarChart3, User } from 'lucide-react';
+import { LogOut, BarChart3, User, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Navbar = ({ round }) => {
