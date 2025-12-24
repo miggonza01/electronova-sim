@@ -18,12 +18,28 @@ const CompanySchema = new mongoose.Schema({
     assets: { type: mongoose.Schema.Types.Decimal128, default: 500000.00 },
     liabilities: { type: mongoose.Schema.Types.Decimal128, default: 0.00 }
   },
-  // --- NUEVO: MATERIA PRIMA ---
+  // Materia Prima
   rawMaterials: {
-    units: { type: Number, default: 0 },     // Cantidad de material disponible
-    averageCost: { type: mongoose.Schema.Types.Decimal128, default: 0.00 } // Costo promedio ponderado
+    units: { type: Number, default: 0 },
+    averageCost: { type: mongoose.Schema.Types.Decimal128, default: 0.00 }
   },
-  // ----------------------------
+  // [NUEVO] Stock en Fábrica (Recién producido, NO vendible aún)
+  factoryStock: {
+    units: { type: Number, default: 0 },
+    unitCost: { type: mongoose.Schema.Types.Decimal128, default: 0.00 }
+  },
+  // [NUEVO] Logística (Mercancía viajando)
+  inTransit: [
+    {
+      batchId: String,
+      units: Number,
+      destination: String, // Por ahora "Plaza Central"
+      method: String,      // "Aereo" o "Terrestre"
+      roundsRemaining: Number, // 1 o 2
+      unitCost: mongoose.Schema.Types.Decimal128
+    }
+  ],
+  // Inventario en Plaza (Disponible para venta inmediata)
   inventory: [
     {
       batchId: { type: String, required: true },
@@ -53,25 +69,33 @@ const CompanySchema = new mongoose.Schema({
   }
 });
 
+// Transformación para que el Frontend reciba números simples
 CompanySchema.set('toJSON', {
   transform: (doc, ret) => {
-    // Conversión de Decimal128 a float para el Frontend
     if (ret.financials.cash) ret.financials.cash = parseFloat(ret.financials.cash.toString());
     if (ret.financials.assets) ret.financials.assets = parseFloat(ret.financials.assets.toString());
     if (ret.financials.liabilities) ret.financials.liabilities = parseFloat(ret.financials.liabilities.toString());
     
-    // Convertir costos de inventario
+    // Inventario Plaza
     if (ret.inventory) {
         ret.inventory.forEach(item => {
             if(item.unitCost) item.unitCost = parseFloat(item.unitCost.toString());
         });
     }
-
-    // Convertir costos de Materia Prima
+    // [NUEVO] Fábrica
+    if (ret.factoryStock && ret.factoryStock.unitCost) {
+       ret.factoryStock.unitCost = parseFloat(ret.factoryStock.unitCost.toString());
+    }
+    // [NUEVO] Tránsito
+    if (ret.inTransit) {
+        ret.inTransit.forEach(item => {
+            if(item.unitCost) item.unitCost = parseFloat(item.unitCost.toString());
+        });
+    }
+    // Materia Prima
     if (ret.rawMaterials && ret.rawMaterials.averageCost) {
       ret.rawMaterials.averageCost = parseFloat(ret.rawMaterials.averageCost.toString());
     }
-    
     return ret;
   }
 });

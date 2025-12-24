@@ -13,14 +13,13 @@ exports.submitDecision = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Empresa no encontrada' });
     }
 
-    // --- CORRECCIÓN CRÍTICA AQUÍ ---
-    // Nos aseguramos de leer TODOS los campos del formulario
+    // Extraemos TODOS los campos, incluyendo logistics
     const { 
       price, 
       marketing, 
       production, 
-      procurement, // <--- ESTE FALTABA
-      logistics 
+      procurement, 
+      logistics // [CRÍTICO] Asegurar que esto se recibe y guarda
     } = req.body;
     
     const currentRound = company.currentRound;
@@ -33,15 +32,15 @@ exports.submitDecision = async (req, res) => {
       return res.status(400).json({ success: false, error: 'El marketing no puede ser negativo' });
     }
 
-    // Guardar o Actualizar
+    // Guardar o Actualizar la Decisión
     const decision = await Decision.findOneAndUpdate(
       { companyId: company._id, round: currentRound },
       {
         price,
         marketing,
-        production,   // Asegúrate de que esto se guarde
-        procurement,  // <--- Y ESTO TAMBIÉN
-        logistics,
+        production,
+        procurement,
+        logistics, // Guardamos el array de envíos
         submittedAt: Date.now()
       },
       { new: true, upsert: true, runValidators: true }
@@ -63,7 +62,6 @@ exports.submitDecision = async (req, res) => {
 };
 
 // @desc    Ver decisiones de la ronda actual
-// @route   GET /api/decisions/current
 exports.getCurrentDecision = async (req, res) => {
   try {
     const company = await Company.findOne({ user: req.user.id });
@@ -76,7 +74,7 @@ exports.getCurrentDecision = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: decision || null // Devuelve null si aún no ha decidido nada
+      data: decision || null 
     });
 
   } catch (error) {

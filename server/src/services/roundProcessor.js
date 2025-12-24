@@ -8,110 +8,173 @@ const DEMANDA_TOTAL_BASE = 10000;
 const COSTO_MATERIA_PRIMA = 15.00;
 const COSTO_MANUFACTURA = 35.00;
 
+// [NUEVO] Costos Logísticos
+const SHIPPING_COST_AIR = 5.00;      // Rápido (1 ronda)
+const SHIPPING_COST_GROUND = 1.00;   // Lento (2 rondas)
+
 const processRound = async (config) => { 
-  console.log(`>>> PROCESANDO RONDA ${config.currentRound}...`);
+  console.log(`>>> PROCESANDO RONDA ${config.currentRound} (LOGÍSTICA ACTIVADA)...`);
   const storageCost = parseFloat(config.storageCostPerUnit.toString());
 
-  // 1. Obtener empresas
   const companies = await Company.find();
   const competitors = [];
-  
-  // MAPA TEMPORAL para guardar los costos calculados en la Fase 1
-  // y aplicarlos en la Fase 3 sin perder datos.
   const companyCostsCache = {};
 
-  // --- FASE 1: PRODUCCIÓN Y PREPARACIÓN ---
+  // --- FASE 1: OPERACIONES INTERNAS Y LLEGADAS ---
   for (const company of companies) {
-    // IMPORTANTE: Buscamos la decisión de la ronda que la empresa CREE que es,
-    // o la del admin si están desincronizados.
-    // Para evitar errores, usamos config.currentRound (la ronda real del juego).
     const decision = await Decision.findOne({ 
       companyId: company._id, 
-      round: config.currentRound // <--- CORRECCIÓN: Usar ronda global
+      round: config.currentRound 
     });
 
-    // A. COMPRAS MP
-    // Leemos con seguridad (si es null, es 0)
+    let currentCash = parseFloat(company.financials.cash.toString());
+    let logisticExpenses = 0;
+
+    // 1. PROCESAR LLEGADAS (Tránsito -> Inventario Plaza)
+    // Revisamos qué envíos han llegado a su destino (roundsRemaining <= 1)
+    const arrivingBatches = [];
+    const remainingTransit = [];
+
+    if (company.inTransit) {
+        company.inTransit.forEach(shipment => {
+            if (shipment.roundsRemaining <= 1) {
+                // ¡LLEGÓ! Se convierte en inventario vendible
+                arrivingBatches.push({
+                    batchId: shipment.batchId,
+                    units: shipment.units,
+                    unitCost: shipment.unitCost,
+                    age: 0, // Empieza a envejecer en plaza desde hoy
+                    isObsolete: false
+                });
+            } else {
+                // Sigue viajando, restamos 1 ronda al tiempo restante
+                shipment.roundsRemaining -= 1;
+                remainingTransit.push(shipment);
+            }
+        });
+    }
+    
+    // Sumamos llegadas al inventario existente (Esto es lo que se venderá HOY)
+    company.inventory = [...company.inventory, ...arrivingBatches];
+    company.inTransit = remainingTransit;
+
+    // 2. COMPRAS MP (Instantáneas por ahora)
     const mpToBuy = decision?.procurement?.units || 0;
     const costOfMP = mpToBuy * COSTO_MATERIA_PRIMA;
-    
-    let currentMP = company.rawMaterials.units || 0;
-    currentMP += mpToBuy; // Sumamos lo comprado
+    currentCash -= costOfMP;
+    company.rawMaterials.units += mpToBuy;
 
-    // B. PRODUCCIÓN
+    // 3. PRODUCCIÓN (MP -> Stock de Fábrica)
+    // OJO: Esto va a company.factoryStock, NO a la venta.
     const desiredProduction = decision?.production?.units || 0;
     let actualProduction = 0;
     
-    if (currentMP >= desiredProduction) {
+    if (company.rawMaterials.units >= desiredProduction) {
       actualProduction = desiredProduction;
-      currentMP -= desiredProduction;
+      company.rawMaterials.units -= desiredProduction;
     } else {
-      actualProduction = currentMP; // Producimos lo que hay
-      currentMP = 0;
+      actualProduction = company.rawMaterials.units;
+      company.rawMaterials.units = 0;
     }
 
     const costOfProduction = actualProduction * COSTO_MANUFACTURA;
+    currentCash -= costOfProduction;
 
-    // Agregar al inventario
-    if (actualProduction > 0) {
-      const totalUnitCost = COSTO_MATERIA_PRIMA + COSTO_MANUFACTURA;
-      company.inventory.push({
-        batchId: `R${config.currentRound}-PROD`,
-        units: actualProduction,
-        unitCost: totalUnitCost,
-        age: 0,
-        isObsolete: false
-      });
-    }
+    // Actualizar Stock de Fábrica (Promedio Ponderado)
+    let currentFactoryUnits = company.factoryStock.units || 0;
+    let currentFactoryCost = parseFloat(company.factoryStock.unitCost.toString()) || 0;
+    
+    const newProductionCost = COSTO_MATERIA_PRIMA + COSTO_MANUFACTURA;
+    
+    let totalValue = (currentFactoryUnits * currentFactoryCost) + (actualProduction * newProductionCost);
+    let newTotalUnits = currentFactoryUnits + actualProduction;
+    let newAverageCost = newTotalUnits > 0 ? totalValue / newTotalUnits : 0;
 
-    // Actualizar MP en objeto (pero aun no guardamos)
-    company.rawMaterials.units = currentMP;
+    company.factoryStock = {
+        units: newTotalUnits,
+        unitCost: newAverageCost
+    };
 
-    // Guardar costos en caché para restarlos al final
+    // 4. ENVÍOS (Fábrica -> Tránsito)
+    // El usuario decide mover X unidades de la fábrica a la plaza
+    const shipments = decision?.logistics || [];
+    
+    shipments.forEach(shipment => {
+        // Solo podemos enviar lo que tenemos en fábrica
+        const unitsToShip = Math.min(shipment.units, company.factoryStock.units);
+        
+        if (unitsToShip > 0) {
+            // Restar de fábrica
+            company.factoryStock.units -= unitsToShip;
+            
+            // Calcular costo envío
+            const isAir = shipment.method === 'Aereo';
+            const costPerUnit = isAir ? SHIPPING_COST_AIR : SHIPPING_COST_GROUND;
+            const shipmentCost = unitsToShip * costPerUnit;
+            
+            currentCash -= shipmentCost;
+            logisticExpenses += shipmentCost;
+
+            // Crear paquete en tránsito
+            company.inTransit.push({
+                batchId: `R${config.currentRound}-${isAir ? 'AIR' : 'GND'}`,
+                units: unitsToShip,
+                destination: 'Plaza Central',
+                method: shipment.method,
+                roundsRemaining: isAir ? 1 : 2, // La regla del PDF
+                unitCost: company.factoryStock.unitCost // Mantiene el costo de producción
+            });
+        }
+    });
+
+    // Guardar estado temporal para cálculos finales
+    company.financials.cash = currentCash;
+    
     companyCostsCache[company._id] = {
       mpCost: costOfMP,
       prodCost: costOfProduction,
+      logisticCost: logisticExpenses,
       marketing: decision ? parseFloat(decision.marketing.toString()) : 0
     };
 
-    // Calcular stock total para el mercado
-    const totalStock = company.inventory.reduce((sum, batch) => sum + batch.units, 0);
+    // Stock disponible para VENTAS (Solo lo que está en 'inventory' en Plaza)
+    const totalStockForSale = company.inventory.reduce((sum, batch) => sum + batch.units, 0);
 
     competitors.push({
       id: company._id,
       price: decision ? parseFloat(decision.price.toString()) : 9999,
       marketing: decision ? parseFloat(decision.marketing.toString()) : 0,
-      stock: totalStock,
+      stock: totalStockForSale,
       originalCompany: company 
     });
   }
 
-  // --- FASE 2: MERCADO ---
+  // --- FASE 2: MERCADO (Ventas) ---
   const marketResults = calculateMarketSales(competitors, DEMANDA_TOTAL_BASE);
 
-  // --- FASE 3: APLICACIÓN FINANCIERA Y CIERRE ---
+  // --- FASE 3: CIERRE CONTABLE ---
   for (const result of marketResults) {
     const company = result.originalCompany;
-    const costs = companyCostsCache[company._id]; // Recuperar costos calculados
+    const costs = companyCostsCache[company._id];
 
-    // A. Actualizar Inventario (Ventas FIFO)
+    // A. Ventas FIFO (Descontar del inventario de Plaza)
     let currentInventory = company.inventory;
     currentInventory = processFIFO(currentInventory, result.unitsSold);
     const { updatedInventory, totalStorageCost } = ageInventory(currentInventory, storageCost);
     company.inventory = updatedInventory;
 
-    // B. CÁLCULO FINAL DE CAJA
+    // B. Finanzas Finales
     const revenue = result.revenue;
     
-    // Suma de todos los egresos: MP + Producción + Marketing + Almacenamiento
-    const totalExpenses = costs.mpCost + costs.prodCost + costs.marketing + totalStorageCost;
+    // Nota: Los costos operativos (MP, Prod, Logística) ya se restaron de 'currentCash' en Fase 1.
+    // Ahora sumamos ingresos y restamos lo que falta (Marketing y Almacenaje).
     
     let currentCash = parseFloat(company.financials.cash.toString());
-    let newCash = currentCash + revenue - totalExpenses;
-    
+    let newCash = currentCash + revenue - totalStorageCost - costs.marketing; 
+
     company.financials.cash = newCash;
 
-    // C. KPIs
+    // C. KPIs (WSC)
     let satisfactionPenalty = 0;
     if (result.potentialDemand > 0) {
         const missedRatio = result.missedSales / result.potentialDemand;
@@ -127,7 +190,7 @@ const processRound = async (config) => {
     const wsc = (profitScore * 0.4) + (newSatisfaction * 0.3) + (company.kpi.ethics * 0.3);
     company.kpi.wsc = wsc;
 
-    // D. HISTORIAL
+    // D. Historial
     company.history.push({
         round: config.currentRound,
         cash: newCash,
@@ -136,12 +199,11 @@ const processRound = async (config) => {
         revenue: revenue
     });
 
-    // E. SINCRONIZACIÓN DE RONDA (CORRECCIÓN CRÍTICA)
-    // Actualizamos la ronda de la empresa para que coincida con la nueva ronda global
+    // Avanzar ronda de la empresa
     company.currentRound = config.currentRound + 1; 
 
     await company.save();
-    console.log(`Empresa ${company.name}: Gastos Totales: $${totalExpenses} | Caja Final: $${newCash.toFixed(2)}`);
+    console.log(`Empresa ${company.name}: Ventas ${result.unitsSold} | Stock Fábrica: ${company.factoryStock.units} | En Tránsito: ${company.inTransit.length}`);
   }
 
   console.log(`>>> RONDA ${config.currentRound} FINALIZADA.`);
