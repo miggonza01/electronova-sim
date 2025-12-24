@@ -5,7 +5,7 @@ import StatCard from '../components/StatCard';
 import DecisionModal from '../components/DecisionModal';
 import api from '../services/api';
 import { io } from 'socket.io-client';
-import { DollarSign, Package, TrendingUp, Activity, AlertTriangle, PlusCircle, Truck, Factory } from 'lucide-react';
+import { DollarSign, Package, TrendingUp, Activity, PlusCircle, Truck, MapPin } from 'lucide-react'; // MapPin nuevo
 import AnalyticsChart from '../components/AnalyticsChart';
 
 const DashboardPage = () => {
@@ -33,8 +33,6 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchCompanyData();
-    
-    // WebSockets
     const SOCKET_URL = import.meta.env.VITE_API_URL 
       ? import.meta.env.VITE_API_URL.replace('/api', '') 
       : 'http://localhost:5000';
@@ -48,15 +46,10 @@ const DashboardPage = () => {
   if (error) return <div className="text-white text-center mt-20">{error} <button onClick={()=>window.location.reload()}>Reintentar</button></div>;
   if (!company) return null;
 
-  // --- DATOS CALCULADOS ---
   const cash = company.financials?.cash || 0;
-  // Inventario Vendible (Plaza)
   const inventoryPlaza = company.inventory?.reduce((acc, batch) => acc + batch.units, 0) || 0;
-  // Inventario en Fábrica
-  const inventoryFactory = company.factoryStock?.units || 0;
-  // Inventario en Tránsito
   const inventoryTransit = company.inTransit?.reduce((acc, ship) => acc + ship.units, 0) || 0;
-
+  const inventoryFactory = company.factoryStock?.units || 0;
   const wsc = company.kpi?.wsc || 0;
   const ethics = company.kpi?.ethics || 100;
 
@@ -78,11 +71,9 @@ const DashboardPage = () => {
           </button>
         </div>
 
-        {/* --- GRID DE KPIs --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard title="Capital Disponible" value={`$${cash.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`} icon={DollarSign} color="green" subtext="Liquidez" />
           
-          {/* Tarjeta de Inventario Combinada */}
           <div className="bg-corporate-slate p-6 rounded-xl border border-white/5 shadow-lg">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-corporate-muted text-xs font-bold uppercase">Cadena Suministro</h3>
@@ -108,15 +99,13 @@ const DashboardPage = () => {
           <StatCard title="Índice de Ética" value={`${ethics}%`} icon={Activity} color={ethics > 80 ? "green" : "red"} subtext="Reputación" />
         </div>
 
-        {/* --- GRÁFICO --- */}
         <div className="mb-8">
            <AnalyticsChart history={company.history} />
         </div>
 
-        {/* --- DETALLE DE LOGÍSTICA (NUEVO) --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* TABLA 1: EN TRÁNSITO (Lo que viene) */}
+          {/* TABLA 1: EN TRÁNSITO */}
           <div className="bg-corporate-slate rounded-xl border border-white/5 overflow-hidden shadow-lg">
             <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-corporate-navy/50">
               <h3 className="text-white font-bold text-sm uppercase flex items-center gap-2">
@@ -128,7 +117,7 @@ const DashboardPage = () => {
               <table className="w-full text-left text-sm text-corporate-muted">
                 <thead className="bg-corporate-navy text-xs uppercase font-bold text-white/70">
                   <tr>
-                    <th className="px-4 py-2">Lote</th>
+                    <th className="px-4 py-2">Destino</th> {/* Columna Destino */}
                     <th className="px-4 py-2">Cant.</th>
                     <th className="px-4 py-2">Método</th>
                     <th className="px-4 py-2">Llegada</th>
@@ -138,8 +127,8 @@ const DashboardPage = () => {
                   {company.inTransit && company.inTransit.length > 0 ? (
                     company.inTransit.map((ship, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-3 font-mono text-xs">{ship.batchId}</td>
-                        <td className="px-4 py-3 text-white font-bold">{ship.units}</td>
+                        <td className="px-4 py-3 font-bold text-white">{ship.destination}</td>
+                        <td className="px-4 py-3 text-white font-mono">{ship.units}</td>
                         <td className="px-4 py-3">{ship.method}</td>
                         <td className="px-4 py-3 text-corporate-warning font-bold">
                           {ship.roundsRemaining <= 1 ? "PRÓXIMA RONDA" : `En ${ship.roundsRemaining} rondas`}
@@ -154,11 +143,11 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* TABLA 2: INVENTARIO EN PLAZA (Lo que vendes) */}
+          {/* TABLA 2: INVENTARIO EN PLAZA */}
           <div className="bg-corporate-slate rounded-xl border border-white/5 overflow-hidden shadow-lg">
             <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-corporate-navy/50">
               <h3 className="text-white font-bold text-sm uppercase flex items-center gap-2">
-                <Package size={16} className="text-corporate-blue"/> Stock en Plaza (Vendible)
+                <MapPin size={16} className="text-corporate-blue"/> Stock en Plaza
               </h3>
               <span className="text-xs text-corporate-muted">{company.inventory?.length || 0} lotes</span>
             </div>
@@ -166,7 +155,7 @@ const DashboardPage = () => {
               <table className="w-full text-left text-sm text-corporate-muted">
                 <thead className="bg-corporate-navy text-xs uppercase font-bold text-white/70">
                   <tr>
-                    <th className="px-4 py-2">Lote</th>
+                    <th className="px-4 py-2">Plaza</th> {/* Columna Plaza NUEVA */}
                     <th className="px-4 py-2">Cant.</th>
                     <th className="px-4 py-2">Costo</th>
                     <th className="px-4 py-2">Estado</th>
@@ -176,8 +165,8 @@ const DashboardPage = () => {
                   {company.inventory && company.inventory.length > 0 ? (
                     company.inventory.map((batch, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-3 font-mono text-xs">{batch.batchId}</td>
-                        <td className="px-4 py-3 text-white font-bold">{batch.units}</td>
+                        <td className="px-4 py-3 font-bold text-corporate-blue">{batch.market}</td>
+                        <td className="px-4 py-3 text-white font-mono">{batch.units}</td>
                         <td className="px-4 py-3">${batch.unitCost}</td>
                         <td className="px-4 py-3">
                           {batch.age > 3 ? <span className="text-corporate-danger">OBSOLETO</span> : <span className="text-corporate-success">ACTIVO</span>}
@@ -188,8 +177,8 @@ const DashboardPage = () => {
                     <tr>
                       <td colSpan="4" className="px-4 py-6 text-center text-xs italic">
                         {inventoryTransit > 0 
-                          ? "Almacén vacío. Esperando llegada de mercancía en tránsito."
-                          : "Almacén vacío. Produce y envía mercancía."}
+                          ? "Esperando llegada de mercancía."
+                          : "Almacén vacío."}
                       </td>
                     </tr>
                   )}

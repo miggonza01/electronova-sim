@@ -1,6 +1,13 @@
 // server/src/models/GlobalConfig.js
 const mongoose = require('mongoose');
 
+const MarketConfigSchema = new mongoose.Schema({
+  name: { type: String, required: true }, // "Norte", "Sur", "Centro"
+  baseDemand: { type: Number, required: true }, // Ej: 5000
+  priceSensitivity: { type: Number, required: true }, // Ej: 1.5 (Baja), 3.0 (Alta)
+  maxAcceptablePrice: { type: Number, required: true } // Ej: 400, 200
+});
+
 const GlobalConfigSchema = new mongoose.Schema({
   currentRound: {
     type: Number,
@@ -8,21 +15,20 @@ const GlobalConfigSchema = new mongoose.Schema({
   },
   gameActive: {
     type: Boolean,
-    default: true // El juego empieza activo
+    default: true 
   },
   loanInterestRate: {
     type: mongoose.Schema.Types.Decimal128,
-    default: 0.05 // 5% por ronda
+    default: 0.05
   },
   storageCostPerUnit: {
     type: mongoose.Schema.Types.Decimal128,
     default: 0.20
   },
-  // Aquí podríamos añadir más variables globales (costos de MP, etc.)
-  // Por ahora, estos son los esenciales.
+  // [NUEVO] Configuración de Plazas
+  markets: [MarketConfigSchema]
 });
 
-// Convertir Decimales para JSON
 GlobalConfigSchema.set('toJSON', {
   transform: (doc, ret) => {
     if (ret.loanInterestRate) ret.loanInterestRate = parseFloat(ret.loanInterestRate.toString());
