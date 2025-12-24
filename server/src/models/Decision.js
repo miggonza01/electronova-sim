@@ -20,25 +20,23 @@ const DecisionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Decimal128,
     default: 0.00
   },
-  // --- VERIFICA QUE ESTO ESTÉ AQUÍ ---
   procurement: {
-    units: { type: Number, default: 0 } // <--- CRÍTICO
+    units: { type: Number, default: 0 }
   },
   production: {
     units: { type: Number, default: 0 },
   },
-  // -----------------------------------
+  // [ACTUALIZADO] Estructura real de logística
   logistics: [
     {
-      destination: { type: String },
-      units: Number,
-      method: { type: String }
+      destination: { type: String, default: 'Plaza Central' },
+      units: { type: Number, required: true },
+      method: { type: String, enum: ['Aereo', 'Terrestre'], required: true }
     }
   ],
   submittedAt: { type: Date, default: Date.now }
 });
 
-// ... resto del archivo (indices y toJSON) ...
 DecisionSchema.index({ companyId: 1, round: 1 }, { unique: true });
 DecisionSchema.set('toJSON', {
   transform: (doc, ret) => {
