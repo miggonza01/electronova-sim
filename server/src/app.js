@@ -1,128 +1,109 @@
-// server/src/app.js
+// ============================================
+// FILE: server/src/app.js
+// VERSION: v2.0.0-alpha.1
+// PURPOSE: Orquestador principal del Backend (Soporte Híbrido v1.3/v2.0)
+// CHANGE LOG: Refactorización completa para soportar entorno aislado v2
+// ============================================
 
-// Importar dependencias y módulos necesarios
-require('dotenv').config(); // Cargar variables de entorno desde el archivo .env
-const express = require('express'); // Framework para construir aplicaciones web y APIs
-const http = require('http'); // Módulo nativo de Node.js para crear servidores HTTP
-const { Server } = require('socket.io'); // Biblioteca para WebSockets en tiempo real
-const mongoose = require('mongoose'); // ODM para MongoDB
-const cors = require('cors'); // Middleware para habilitar CORS (Cross-Origin Resource Sharing)
-const helmet = require('helmet'); // Middleware para seguridad HTTP headers
+// --- 1. IMPORTACIONES DEL NÚCLEO ---
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+require('dotenv').config(); // Carga variables si no se usó dotenv-cli
 
-// Importar rutas de la aplicación
-const companyRoutes = require('./routes/companyRoutes');
+// --- 2. IMPORTACIÓN DE RUTAS (Basado en tu estructura) ---
 const authRoutes = require('./routes/authRoutes');
+const companyRoutes = require('./routes/companyRoutes');
 const decisionRoutes = require('./routes/decisionRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const productRoutes = require('./routes/productRoutes');
 
-// Importar gestor de sockets para manejar eventos de WebSocket
-const { socketHandler } = require('./sockets/socketHandler');
+// --- 3. IMPORTACIÓN DE SOCKETS ---
+// Asegúrate de que tu socketHandler exporte una función que reciba (io)
+const socketHandler = require('./sockets/socketHandler');
 
-// Inicializar aplicación Express
+// --- 4. INICIALIZACIÓN DE SERVIDOR ---
 const app = express();
+const server = http.createServer(app); // Servidor HTTP nativo para soportar WebSockets
 
-// --- CONFIGURACIÓN DE SOCKET.IO ---
-// Crear servidor HTTP crudo pasando la app de Express
-// Socket.IO requiere un servidor HTTP crudo, no la app de Express directamente
-const server = http.createServer(app);
-
-// --- CONFIGURACIÓN EXPLÍCITA DE CORS PARA PERMITIR AL FRONTEND ---
-// Definimos los orígenes permitidos en un array para mantener la configuración centralizada
-// Esto permite que la aplicación funcione tanto en desarrollo como en producción
-const allowedOrigins = [
-  "http://localhost:5173", // Para desarrollo local (frontend de Vite en puerto 5173)
-  "http://localhost:4173", // Vite Preview
-  "https://electronova-sim.vercel.app" // URL exacta del frontend desplegado en Vercel (producción)
-  // NOTA: Para agregar más orígenes en el futuro, añádelos a este array
-];
-
-// Configuración de CORS para Express con función de validación dinámica
-// En lugar de un string fijo, usamos una función que valida contra la lista de orígenes permitidos
-app.use(cors({
-  origin: (origin, callback) => {
-    // Permitir peticiones sin origen (como herramientas de testing: Postman, curl, etc.)
-    // O si el origen está incluido en la lista de orígenes permitidos
-    if (!origin || allowedOrigins.includes(origin)) {
-      // Primero parámetro null: sin error, segundo parámetro true: origen permitido
-      callback(null, true);
-    } else {
-      console.log("Bloqueado por CORS:", origin); // Log para depurar en Render si falla
-      // Si el origen no está en la lista, rechazar la petición con error
-      callback(new Error('Origen no permitido por la política CORS'));
-    }
-  },
-  credentials: true // Permite enviar cookies y headers de autenticación si son necesarios
-}));
-
-// --- CONFIGURACIÓN DE SOCKET.IO CON CORS ESPECÍFICO ---
-// Inicializar Socket.IO sobre el servidor HTTP con configuración de CORS
-// IMPORTANTE: Socket.IO necesita su propia configuración de CORS separada de Express
-// Usamos el mismo array 'allowedOrigins' para mantener consistencia entre HTTP y WebSockets
+// Configuración de Socket.io
 const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins, // Mismos orígenes permitidos que para Express - ¡DEBE COINCIDIR!
-    methods: ["GET", "POST"] // Métodos HTTP permitidos para conexiones WebSocket
-  }
+    cors: {
+        // En desarrollo v2 permitimos cualquier origen para facilitar pruebas
+        origin: process.env.NODE_ENV === 'development' ? "*" : [
+            "https://electronova-sim.vercel.app",
+            "http://localhost:5173"
+        ],
+        methods: ["GET", "POST"]
+    }
 });
 
-// Inicializar la lógica de manejo de sockets (conexiones, desconexiones, eventos personalizados)
-socketHandler(io);
+// Inyectar instancia de IO en la app para usarla en controladores (req.app.get('io'))
+app.set('io', io);
 
-// --- MIDDLEWARES GLOBALES DE EXPRESS ---
-app.use(helmet()); // Añade headers de seguridad HTTP (protección contra vulnerabilidades comunes)
-app.use(express.json()); // Parsea solicitudes con cuerpo JSON a objetos JavaScript
+// Inicializar lógica de Sockets
+// Nota: Si socketHandler no es una función, comenta esta línea temporalmente
+try {
+    if (typeof socketHandler === 'function') {
+        socketHandler(io);
+    } else {
+        console.warn('⚠️ socketHandler no exporta una función. Sockets no inicializados en app.js');
+    }
+} catch (error) {
+    console.warn('⚠️ Error al cargar socketHandler:', error.message);
+}
 
-// NOTA: cors() ya se aplicó arriba con configuración específica
-// No es necesario app.use(cors()) adicional aquí
+// --- 5. MIDDLEWARES GLOBALES ---
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Middleware personalizado para inyectar el objeto 'io' en cada request
-// Esto permite que los controladores de rutas (como AdminController) emitan eventos WebSocket
-app.use((req, res, next) => {
-  req.io = io; // Añade la instancia de Socket.IO al objeto de solicitud (req)
-  next(); // Pasa al siguiente middleware o ruta
-});
+// --- 6. CONEXIÓN A BASE DE DATOS (SMART SWITCHING) ---
+// Esta lógica permite usar la BD de desarrollo si existe la variable V2
+const dbUri = process.env.MONGODB_URI_V2 || process.env.MONGODB_URI;
 
-// --- REGISTRO DE RUTAS DE LA APLICACIÓN ---
-// Todas las rutas están prefijadas con '/api' para separar API de rutas de frontend
-app.use('/api/auth', authRoutes); // Rutas de autenticación (login, registro, etc.)
-app.use('/api/decisions', decisionRoutes); // Rutas para decisiones de los jugadores
-app.use('/api/admin', adminRoutes); // Rutas administrativas (procesar rondas, configurar juego)
-app.use('/api/company', companyRoutes); // Rutas para operaciones de empresa
+if (!dbUri) {
+    console.error('❌ FATAL ERROR: No se ha definido ninguna cadena de conexión a MongoDB.');
+    process.exit(1);
+}
 
-// Ruta raíz - Endpoint básico para verificar que el servidor está funcionando
+// Extracción del nombre de la BD para feedback visual
+const dbName = dbUri.split('/').pop().split('?')[0];
+
+console.log('----------------------------------------------------');
+console.log(`🔌 INICIANDO SISTEMA ELECTRONOVA...`);
+console.log(`🎯 MODO: ${process.env.MONGODB_URI_V2 ? '🛠️  DESARROLLO V2 (AISLADO)' : '🚀 PRODUCCIÓN V1'}`);
+console.log(`🗄️  BASE DE DATOS: ${dbName}`);
+console.log('----------------------------------------------------');
+
+mongoose.connect(dbUri)
+    .then(() => console.log(`✅ CONEXIÓN EXITOSA A MONGODB`))
+    .catch((err) => {
+        console.error('❌ ERROR CRÍTICO DE BASE DE DATOS:', err);
+        process.exit(1);
+    });
+
+// --- 7. MONTAJE DE RUTAS ---
+app.use('/api/auth', authRoutes);
+app.use('/api/companies', companyRoutes); // Estandarización plural
+app.use('/api/decisions', decisionRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/products', productRoutes);
+
+// Ruta de Salud (Health Check)
 app.get('/', (req, res) => {
-  res.send('¡Servidor ElectroNova con WebSockets Activo!');
+    res.send(`ElectroNova API Running - Mode: ${process.env.MONGODB_URI_V2 ? 'v2-DEV' : 'PROD'}`);
 });
 
-// --- CONEXIÓN A BASE DE DATOS MONGODB ---
-const connectDB = async () => {
-  try {
-    // Conectar a MongoDB Atlas usando la URI desde variables de entorno
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('>>> BASE DE DATOS CONECTADA: MongoDB Atlas');
-  } catch (error) {
-    console.error('!!! ERROR DE CONEXIÓN A BD:', error.message);
-    process.exit(1); // Terminar proceso si no se puede conectar a la base de datos
-  }
-};
+// --- 8. ARRANQUE DEL SERVIDOR ---
+const PORT = process.env.PORT || 5000;
 
-// --- INICIO DEL SERVIDOR ---
-const PORT = process.env.PORT || 5000; // Usar puerto de variable de entorno o 5000 por defecto
-
-// Conectar a la base de datos y luego iniciar el servidor
-connectDB().then(() => {
-  // IMPORTANTE: Usar server.listen (no app.listen) para que Socket.IO funcione correctamente
-  server.listen(PORT, () => {
-    console.log(`>>> SERVIDOR + SOCKETS CORRIENDO EN PUERTO: ${PORT}`);
-    console.log(`>>> CORS configurado para: ${allowedOrigins.join(', ')}`);
-  });
+server.listen(PORT, () => {
+    console.log(`🚀 SERVIDOR CORRIENDO EN PUERTO: ${PORT}`);
+    console.log(`📡 SOCKETS ACTIVOS`);
 });
 
-// NOTAS IMPORTANTES SOBRE LA CONFIGURACIÓN ACTUALIZADA:
-// 1. ORÍGENES MÚLTIPLES: Ahora soporta tanto desarrollo (localhost) como producción (Vercel)
-// 2. VALIDACIÓN DINÁMICA: La función 'origin' en CORS permite validar dinámicamente cada petición
-// 3. CONSISTENCIA: La misma lista 'allowedOrigins' se usa para Express y Socket.IO
-// 4. SEGURIDAD MEJORADA: Solo los orígenes explícitamente listados son permitidos
-// 5. FLEXIBILIDAD: Para añadir nuevos orígenes (ej: dominio personalizado), agregar al array
-// 6. HERRAMIENTAS DE DESARROLLO: Se permiten peticiones sin origen (null) para testing con Postman/curl
-// 7. CREDENCIALES: 'credentials: true' permite cookies de sesión/autorización si la autenticación lo requiere
+module.exports = app; // Exportar para tests si es necesario
