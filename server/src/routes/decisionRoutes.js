@@ -1,11 +1,10 @@
-// server/src/routes/decisionRoutes.js
 const express = require('express');
 const router = express.Router();
-const { submitDecision, getCurrentDecision } = require('../controllers/decisionController');
-const { protect } = require('../middlewares/authMiddleware');
+const { processRound, getGameStatus } = require('../controllers/adminController');
+// const { protect, admin } = require('../middlewares/authMiddleware');
 
-// Todas estas rutas están protegidas (necesitan Login)
-router.post('/', protect, submitDecision);
-router.get('/current', protect, getCurrentDecision);
+// Rutas protegidas (Simplificado para dev v2)
+router.post('/process-round', processRound); // Agregar middlewares protect/admin después
+router.get('/status', getGameStatus);
 
 module.exports = router;

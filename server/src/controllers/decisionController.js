@@ -1,84 +1,89 @@
-// server/src/controllers/decisionController.js
+// ============================================
+// FILE: server/src/controllers/decisionController.js
+// VERSION: v2.0.0-alpha.1
+// PURPOSE: API para que los estudiantes guarden sus decisiones
+// SPEC REF: T1.5 - Endpoints de Decisiones
+// ============================================
+
 const Decision = require('../models/Decision');
+const GameSettings = require('../models/GameSettings');
 const Company = require('../models/Company');
 
-// @desc    Enviar decisiones para la ronda actual
+// @desc    Guardar o Actualizar decisión para la ronda actual
 // @route   POST /api/decisions
-exports.submitDecision = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const company = await Company.findOne({ user: userId });
+// @access  Private (Student)
+exports.saveDecision = async (req, res) => {
+    try {
+        // 1. Obtener Ronda Actual
+        const settings = await GameSettings.findOne({ isActive: true });
+        if (!settings) return res.status(500).json({ message: 'Error de configuración de juego' });
 
-    if (!company) {
-      return res.status(404).json({ success: false, error: 'Empresa no encontrada' });
+        const currentRound = settings.currentRound;
+
+        // 2. Identificar Empresa del Usuario
+        // Asumimos que req.user.id viene del middleware de auth
+        const company = await Company.findOne({ user: req.user.id });
+        if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        if (company.isBankrupt) {
+            return res.status(400).json({ message: 'Tu empresa está en bancarrota. No puedes tomar decisiones.' });
+        }
+
+        // 3. Validar Estructura Básica (Opcional: usar Joi aquí para validación estricta)
+        const { production, procurement, logistics, commercial } = req.body;
+
+        // 4. Upsert (Crear o Actualizar)
+        // Buscamos si ya existe decisión para esta empresa y ronda
+        const decision = await Decision.findOneAndUpdate(
+            { companyId: company._id, round: currentRound },
+            {
+                production,
+                procurement,
+                logistics,
+                commercial,
+                submittedAt: Date.now()
+            },
+            { new: true, upsert: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `Decisión guardada para la Ronda ${currentRound}`,
+            data: decision
+        });
+
+    } catch (error) {
+        console.error('Error saving decision:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error al guardar decisión',
+            error: error.message 
+        });
     }
-
-    // Extraemos TODOS los campos, incluyendo logistics
-    const { 
-      price, 
-      marketing, 
-      production, 
-      procurement, 
-      logistics // [CRÍTICO] Asegurar que esto se recibe y guarda
-    } = req.body;
-    
-    const currentRound = company.currentRound;
-
-    // Validaciones Básicas
-    if (price <= 0) {
-      return res.status(400).json({ success: false, error: 'El precio debe ser mayor a 0' });
-    }
-    if (marketing < 0) {
-      return res.status(400).json({ success: false, error: 'El marketing no puede ser negativo' });
-    }
-
-    // Guardar o Actualizar la Decisión
-    const decision = await Decision.findOneAndUpdate(
-      { companyId: company._id, round: currentRound },
-      {
-        price,
-        marketing,
-        production,
-        procurement,
-        logistics, // Guardamos el array de envíos
-        submittedAt: Date.now()
-      },
-      { new: true, upsert: true, runValidators: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: `Decisiones guardadas para la Ronda ${currentRound}`,
-      data: decision
-    });
-
-  } catch (error) {
-    console.error(error);
-    if (error.code === 11000) {
-      return res.status(400).json({ success: false, error: 'Ya existe una decisión para esta ronda' });
-    }
-    res.status(500).json({ success: false, error: 'Error al procesar la decisión' });
-  }
 };
 
-// @desc    Ver decisiones de la ronda actual
+// @desc    Obtener decisión de la ronda actual (para rellenar el formulario)
+// @route   GET /api/decisions/current
+// @access  Private
 exports.getCurrentDecision = async (req, res) => {
-  try {
-    const company = await Company.findOne({ user: req.user.id });
-    if (!company) return res.status(404).json({ error: 'Empresa no encontrada' });
+    try {
+        const settings = await GameSettings.findOne({ isActive: true });
+        const company = await Company.findOne({ user: req.user.id });
+        
+        if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
 
-    const decision = await Decision.findOne({ 
-      companyId: company._id, 
-      round: company.currentRound 
-    });
+        const decision = await Decision.findOne({ 
+            companyId: company._id, 
+            round: settings.currentRound 
+        });
 
-    res.status(200).json({
-      success: true,
-      data: decision || null 
-    });
+        res.status(200).json({
+            success: true,
+            round: settings.currentRound,
+            data: decision || null // Si es null, el front debe mostrar formulario vacío
+        });
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: 'Error del servidor' });
-  }
+    } catch (error) {
+        res.status(500).json({ message: 'Error del servidor' });
+    }
 };
