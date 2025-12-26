@@ -1,97 +1,130 @@
-// server/src/models/Company.js
+// ============================================
+// FILE: server/src/models/Company.js
+// VERSION: v2.0.0-alpha.1
+// PURPOSE: Modelo Central de la Empresa (Estructura Compleja v2)
+// CHANGE LOG: Migración a Arrays de Subdocumentos, Cash en raíz, Decimal128
+// SPEC REF: 2.1 (Entidades), 4.1 (Esquemas), 4.2 (Lotes)
+// ============================================
+
 const mongoose = require('mongoose');
 
-const CompanySchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true
-  },
-  name: { type: String, required: true, default: 'ElectroNova Startup' },
-  
-  financials: {
-    cash: { type: mongoose.Schema.Types.Decimal128, default: 500000.00 },
-    assets: { type: mongoose.Schema.Types.Decimal128, default: 500000.00 },
-    liabilities: { type: mongoose.Schema.Types.Decimal128, default: 0.00 }
-  },
-  
-  rawMaterials: {
-    units: { type: Number, default: 0 },
-    averageCost: { type: mongoose.Schema.Types.Decimal128, default: 0.00 }
-  },
-  
-  factoryStock: {
-    units: { type: Number, default: 0 },
-    unitCost: { type: mongoose.Schema.Types.Decimal128, default: 0.00 }
-  },
-  
-  inTransit: [
-    {
-      batchId: String,
-      units: Number,
-      destination: String, // "Norte", "Sur", "Centro"
-      method: String,
-      roundsRemaining: Number,
-      unitCost: mongoose.Schema.Types.Decimal128
-    }
-  ],
-  
-  // INVENTARIO EN PLAZA
-  inventory: [
-    {
-      batchId: { type: String, required: true },
-      market: { type: String, required: true }, // [NUEVO] ¿Dónde está este lote?
-      units: { type: Number, required: true },
-      unitCost: { type: mongoose.Schema.Types.Decimal128, required: true },
-      age: { type: Number, default: 0 },
-      isObsolete: { type: Boolean, default: false }
-    }
-  ],
-  
-  history: [
-    {
-      round: Number,
-      cash: Number,
-      wsc: Number,
-      unitsSold: Number,
-      revenue: Number
-    }
-  ],
-  
-  kpi: {
-    ethics: { type: Number, default: 100, min: 0, max: 100 },
-    satisfaction: { type: Number, default: 100, min: 0, max: 100 },
-    wsc: { type: Number, default: 0 } 
-  },
-  
-  currentRound: { type: Number, default: 1 }
+// --- SUB-ESQUEMAS (Componentes internos) ---
+
+// 1. Inventario de Materia Prima en Planta
+const RawMaterialStockSchema = new mongoose.Schema({
+    materialType: { 
+        type: String, 
+        enum: ['Alfa', 'Beta', 'Omega'], 
+        required: true 
+    },
+    units: { type: Number, default: 0, min: 0 },
+    averageCost: { type: mongoose.Schema.Types.Decimal128, default: 0.0 } // Costo Promedio Ponderado
+}, { _id: false });
+
+// 2. Inventario de Producto Terminado en Planta (Factory Stock)
+const FactoryStockSchema = new mongoose.Schema({
+    productLine: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Product', 
+        required: true 
+    },
+    units: { type: Number, default: 0, min: 0 },
+    unitCost: { type: mongoose.Schema.Types.Decimal128, default: 0.0 }
+}, { _id: false });
+
+// 3. Lotes de Inventario en Mercados (Ventas) - SPEC REF: Pág 9
+const InventoryLotSchema = new mongoose.Schema({
+    productLine: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Product', 
+        required: true 
+    },
+    market: { 
+        type: String, 
+        enum: ['Novaterra', 'Solís', 'Veridia', 'Aurínea'], 
+        required: true 
+    },
+    units: { type: Number, required: true, min: 0 },
+    unitCost: { type: mongoose.Schema.Types.Decimal128, required: true },
+    ageInRounds: { type: Number, default: 0, min: 0 } // Para cálculo de obsolescencia
 });
 
-CompanySchema.set('toJSON', {
-  transform: (doc, ret) => {
-    if (ret.financials.cash) ret.financials.cash = parseFloat(ret.financials.cash.toString());
-    if (ret.financials.assets) ret.financials.assets = parseFloat(ret.financials.assets.toString());
-    if (ret.financials.liabilities) ret.financials.liabilities = parseFloat(ret.financials.liabilities.toString());
+// 4. Tránsitos (Logística y Compras) - SPEC REF: Pág 3
+const InboundMaterialSchema = new mongoose.Schema({
+    materialType: { type: String, required: true },
+    supplierType: { type: String, enum: ['local', 'imported'], required: true },
+    units: { type: Number, required: true },
+    totalCost: { type: mongoose.Schema.Types.Decimal128, required: true }, // Costo total del lote
+    roundsUntilArrival: { type: Number, required: true }
+});
+
+const OutboundProductSchema = new mongoose.Schema({
+    productLine: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    destination: { type: String, required: true },
+    units: { type: Number, required: true },
+    unitCost: { type: mongoose.Schema.Types.Decimal128, required: true },
+    roundsUntilArrival: { type: Number, required: true }
+});
+
+// --- ESQUEMA PRINCIPAL ---
+
+const CompanySchema = new mongoose.Schema({
+    // Identidad y Auth
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        unique: true
+    },
+    name: { type: String, required: true, default: 'ElectroNova Inc.' },
     
-    if (ret.inventory) {
-        ret.inventory.forEach(item => {
-            if(item.unitCost) item.unitCost = parseFloat(item.unitCost.toString());
-        });
+    // Estado Financiero y Estratégico (Raíz según PDF 2.1)
+    cash: { 
+        type: mongoose.Schema.Types.Decimal128, 
+        default: 500000.00 
+    },
+    techLevel: { type: Number, default: 1, min: 1 },
+    ethicsIndex: { type: Number, default: 100, min: 0, max: 100 },
+    productionQuota: { type: Number, default: 0 }, // Se recalcula cada ronda
+    assignedCDP: { type: String, default: 'Novaterra', immutable: true },
+
+    // Gestión de Recursos (Arrays de Subdocumentos)
+    rawMaterials: [RawMaterialStockSchema],
+    factoryStock: [FactoryStockSchema],
+    inventory: [InventoryLotSchema], // Lotes vendibles en plazas
+    
+    // Logística en movimiento
+    inTransit: {
+        materials: [InboundMaterialSchema], // Compras llegando
+        products: [OutboundProductSchema]    // Envíos saliendo
+    },
+
+    // Histórico y KPI (Simplificado para v2)
+    currentRound: { type: Number, default: 1 },
+    isBankrupt: { type: Boolean, default: false }
+
+}, {
+    timestamps: true,
+    toJSON: {
+        transform: (doc, ret) => {
+            // Helper para convertir Decimal128 a float
+            const toFloat = (val) => val ? parseFloat(val.toString()) : 0;
+
+            ret.cash = toFloat(ret.cash);
+            
+            if (ret.rawMaterials) ret.rawMaterials.forEach(x => x.averageCost = toFloat(x.averageCost));
+            if (ret.factoryStock) ret.factoryStock.forEach(x => x.unitCost = toFloat(x.unitCost));
+            if (ret.inventory) ret.inventory.forEach(x => x.unitCost = toFloat(x.unitCost));
+            
+            if (ret.inTransit) {
+                if (ret.inTransit.materials) ret.inTransit.materials.forEach(x => x.totalCost = toFloat(x.totalCost));
+                if (ret.inTransit.products) ret.inTransit.products.forEach(x => x.unitCost = toFloat(x.unitCost));
+            }
+
+            delete ret.__v;
+            return ret;
+        }
     }
-    if (ret.factoryStock && ret.factoryStock.unitCost) {
-       ret.factoryStock.unitCost = parseFloat(ret.factoryStock.unitCost.toString());
-    }
-    if (ret.inTransit) {
-        ret.inTransit.forEach(item => {
-            if(item.unitCost) item.unitCost = parseFloat(item.unitCost.toString());
-        });
-    }
-    if (ret.rawMaterials && ret.rawMaterials.averageCost) {
-      ret.rawMaterials.averageCost = parseFloat(ret.rawMaterials.averageCost.toString());
-    }
-    return ret;
-  }
 });
 
 module.exports = mongoose.model('Company', CompanySchema);
