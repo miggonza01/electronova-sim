@@ -1,77 +1,149 @@
-// server/src/services/inventoryService.js
+// ============================================
+// FILE: server/src/services/inventoryService.js
+// VERSION: v2.0.0-alpha.1
+// PURPOSE: Gestión de Inventarios (Llegadas, FIFO, Envejecimiento)
+// SPEC REF: 4.2 - Flujo de Procesamiento
+// ============================================
 
 /**
- * Aplica ventas al inventario usando lógica FIFO (First-In, First-Out).
- * Los lotes más viejos (index 0) se venden primero.
- * 
- * @param {Array} currentInventory - Array de lotes de la empresa.
- * @param {Number} unitsToSell - Cantidad total vendida.
- * @returns {Array} - Inventario actualizado (sin los productos vendidos).
+ * Procesa la llegada de materiales y productos para una empresa.
+ * Se ejecuta AL INICIO de la ronda.
+ * @param {Object} company - Documento de la empresa
  */
-const processFIFO = (currentInventory, unitsToSell) => {
-  // Hacemos una copia profunda para no modificar el original por error
-  let inventory = JSON.parse(JSON.stringify(currentInventory));
-  let remainingToSell = unitsToSell;
+exports.processArrivals = async (company) => {
+    console.log(`📦 INVENTORY: Procesando llegadas para ${company.name}...`);
+    let materialsArrived = 0;
+    let productsArrived = 0;
 
-  // Ordenar inventario: Los de mayor edad (age) o creados antes van primero
-  // Asumimos que el array ya viene ordenado, pero por seguridad:
-  inventory.sort((a, b) => b.age - a.age); // Vender los más viejos primero
+    // --- A. PROCESAR LLEGADA DE MATERIAS PRIMAS ---
+    const arrivingMaterials = [];
+    const remainingMaterials = [];
 
-  // Filtramos lotes vacíos por si acaso
-  inventory = inventory.filter(batch => batch.units > 0);
-
-  const newInventory = [];
-
-  for (let batch of inventory) {
-    if (remainingToSell <= 0) {
-      // Ya vendimos todo lo necesario, este lote queda intacto
-      newInventory.push(batch);
-      continue;
+    if (company.inTransit.materials) {
+        company.inTransit.materials.forEach(batch => {
+            if (batch.roundsUntilArrival <= 1) {
+                arrivingMaterials.push(batch);
+            } else {
+                batch.roundsUntilArrival -= 1;
+                remainingMaterials.push(batch);
+            }
+        });
     }
 
-    if (batch.units <= remainingToSell) {
-      // Vendemos TODO este lote
-      remainingToSell -= batch.units;
-      // No lo agregamos a newInventory porque se agotó (se borra)
-    } else {
-      // Vendemos una PARTE de este lote
-      batch.units -= remainingToSell;
-      remainingToSell = 0;
-      newInventory.push(batch); // Guardamos el resto
-    }
-  }
+    // Integrar MP al Stock (Promedio Ponderado)
+    for (const batch of arrivingMaterials) {
+        const stockItem = company.rawMaterials.find(rm => rm.materialType === batch.materialType);
+        
+        const newUnits = batch.units;
+        // Convertir Decimal128 a float para cálculos matemáticos
+        const totalBatchCost = parseFloat(batch.totalCost.toString());
 
-  return newInventory;
+        if (stockItem) {
+            const currentUnits = stockItem.units;
+            const currentAvgCost = parseFloat(stockItem.averageCost.toString());
+            const currentTotalValue = currentUnits * currentAvgCost;
+
+            const newTotalUnits = currentUnits + newUnits;
+            // Evitar división por cero
+            const newAvgCost = newTotalUnits > 0 ? (currentTotalValue + totalBatchCost) / newTotalUnits : 0;
+
+            stockItem.units = newTotalUnits;
+            stockItem.averageCost = newAvgCost;
+        } else {
+            company.rawMaterials.push({
+                materialType: batch.materialType,
+                units: newUnits,
+                averageCost: newUnits > 0 ? totalBatchCost / newUnits : 0
+            });
+        }
+        materialsArrived++;
+        console.log(`   📥 LLEGADA MP: ${newUnits}u ${batch.materialType} ingresadas.`);
+    }
+    company.inTransit.materials = remainingMaterials;
+
+    // --- B. PROCESAR LLEGADA DE PRODUCTOS TERMINADOS ---
+    const arrivingProducts = [];
+    const remainingProducts = [];
+
+    if (company.inTransit.products) {
+        company.inTransit.products.forEach(batch => {
+            if (batch.roundsUntilArrival <= 1) {
+                arrivingProducts.push(batch);
+            } else {
+                batch.roundsUntilArrival -= 1;
+                remainingProducts.push(batch);
+            }
+        });
+    }
+
+    // Integrar PT al Inventario de Plaza
+    for (const batch of arrivingProducts) {
+        company.inventory.push({
+            productLine: batch.productLine,
+            market: batch.destination,
+            units: batch.units,
+            unitCost: batch.unitCost,
+            ageInRounds: 0 // Nace con edad 0
+        });
+        productsArrived++;
+        console.log(`   📥 LLEGADA PT: ${batch.units}u a ${batch.destination}.`);
+    }
+    company.inTransit.products = remainingProducts;
+
+    return { materialsArrived, productsArrived };
 };
 
 /**
- * Envejece el inventario y calcula costos de almacenamiento.
- * @param {Array} inventory 
- * @param {Number} costPerUnit - Costo de almacenamiento (ej. 0.20)
- * @returns {Object} { updatedInventory, storageCost, obsoletesCost }
+ * Incrementa la edad de los lotes de inventario (Al final de la ronda).
+ * @param {Object} company 
  */
-const ageInventory = (inventory, costPerUnit = 0.20) => {
-  let totalStorageCost = 0;
-  let totalObsoleteLoss = 0; // Dinero perdido por vencimiento
-
-  const updatedInventory = inventory.map(batch => {
-    // 1. Calcular costo de almacenamiento de este lote
-    totalStorageCost += batch.units * costPerUnit;
-
-    // 2. Envejecer (+1 ronda)
-    batch.age += 1;
-
-    // 3. Verificar Obsolescencia (> 3 rondas)
-    if (batch.age > 3 && !batch.isObsolete) {
-        batch.isObsolete = true;
-        // Aquí podrías aplicar la pérdida de valor contable si quisieras
-        // Por ahora solo marcamos la bandera
+exports.ageInventory = async (company) => {
+    if (company.inventory) {
+        company.inventory.forEach(lot => {
+            lot.ageInRounds += 1;
+        });
     }
-
-    return batch;
-  });
-
-  return { updatedInventory, totalStorageCost };
 };
 
-module.exports = { processFIFO, ageInventory };
+/**
+ * Helper FIFO para ventas (Utilizado por MarketEngine más adelante).
+ * Retorna los lotes actualizados y el Costo de Ventas (COGS) total.
+ */
+exports.consumeStockFIFO = (inventoryArray, unitsToSell) => {
+    // Ordenar: Más viejos primero (Mayor ageInRounds)
+    // Clonamos para no mutar el array original desordenadamente durante el sort
+    let sortedInventory = [...inventoryArray].sort((a, b) => b.ageInRounds - a.ageInRounds);
+    
+    let remaining = unitsToSell;
+    let totalCOGS = 0;
+    
+    // Filtramos los que tienen unidades > 0
+    let activeLots = sortedInventory.filter(lot => lot.units > 0);
+    
+    // Array resultante (los que sobreviven o quedan parciales)
+    // Nota: Mongoose maneja los subdocs por _id, así que idealmente modificamos in-situ
+    // pero para cálculo retornamos valores.
+    
+    for (const lot of activeLots) {
+        if (remaining <= 0) break;
+
+        const costPerUnit = parseFloat(lot.unitCost.toString());
+
+        if (lot.units <= remaining) {
+            // Consumir lote completo
+            totalCOGS += (lot.units * costPerUnit);
+            remaining -= lot.units;
+            lot.units = 0; // Marcar para borrado
+        } else {
+            // Consumir parcial
+            totalCOGS += (remaining * costPerUnit);
+            lot.units -= remaining;
+            remaining = 0;
+        }
+    }
+
+    return { 
+        remainingUnitsNeeded: remaining, // Debería ser 0 si había stock
+        totalCOGS 
+    };
+};
