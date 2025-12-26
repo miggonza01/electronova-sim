@@ -1,7 +1,7 @@
 // ============================================
 // FILE: server/src/services/procurementService.js
-// VERSION: v2.1.0-instrumented
-// PURPOSE: Procesar compras y reportar gasto financiero
+// VERSION: v2.2.0-events
+// PURPOSE: Procesar compras aplicando modificadores de eventos
 // ============================================
 
 const RawMaterial = require('../models/RawMaterial');
@@ -11,7 +11,7 @@ exports.processPurchases = async (decision, company) => {
     let totalCostDeduction = 0;
     
     if (!decision.procurement || decision.procurement.length === 0) {
-        return { cost: 0 }; // Retorno financiero vacío
+        return { cost: 0 }; 
     }
 
     console.log(`🛒 PROCUREMENT: Procesando órdenes para ${company.name}...`);
@@ -19,6 +19,13 @@ exports.processPurchases = async (decision, company) => {
     const settings = await GameSettings.findOne({ isActive: true });
     const rawMaterials = await RawMaterial.find({});
     
+    // Obtener modificador de evento (Default 1.0)
+    const costModifier = settings.currentModifiers ? settings.currentModifiers.rawMaterialCost : 1.0;
+    
+    if (costModifier !== 1.0) {
+        console.log(`   ⚠️ EVENTO ACTIVO: Costo MP ajustado por factor x${costModifier}`);
+    }
+
     const materialMap = {};
     rawMaterials.forEach(rm => {
         materialMap[rm.name] = parseFloat(rm.baseCost.toString());
@@ -33,7 +40,9 @@ exports.processPurchases = async (decision, company) => {
         if (!baseCost) continue;
 
         const supplierConfig = settings.supplierConfig[order.supplierType];
-        const orderCost = order.units * baseCost * supplierConfig.costMultiplier;
+        
+        // FÓRMULA FINAL: (Unidades * Base * MultiplicadorProveedor * MultiplicadorEvento)
+        const orderCost = order.units * baseCost * supplierConfig.costMultiplier * costModifier;
         const roundsUntilArrival = supplierConfig.leadTime;
 
         ethicsPointsToAdd += supplierConfig.ethicsBonus;
@@ -49,14 +58,12 @@ exports.processPurchases = async (decision, company) => {
         totalCostDeduction += orderCost;
     }
 
-    // Aplicar cambios a la empresa
     let currentCash = parseFloat(company.cash.toString());
     company.cash = currentCash - totalCostDeduction;
     company.ethicsIndex = Math.min(100, company.ethicsIndex + ethicsPointsToAdd);
 
-    console.log(`   💰 Compras Total: -$${totalCostDeduction}`);
+    console.log(`   💰 Compras Total: -$${totalCostDeduction.toFixed(2)}`);
 
-    // RETORNO DEL RECIBO FINANCIERO
     return { 
         cost: totalCostDeduction,
         ethicsBonus: ethicsPointsToAdd

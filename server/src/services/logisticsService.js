@@ -1,8 +1,10 @@
 // ============================================
 // FILE: server/src/services/logisticsService.js
-// VERSION: v2.1.0-instrumented
-// PURPOSE: Procesar logística y reportar gasto financiero
+// VERSION: v2.2.0-events
+// PURPOSE: Procesar logística aplicando modificadores de eventos
 // ============================================
+
+const GameSettings = require('../models/GameSettings'); // Nuevo import
 
 const COST_AIR = 15.00;
 const COST_GROUND = 5.00;
@@ -17,6 +19,14 @@ exports.processLogistics = async (decision, company) => {
     }
 
     console.log(`🚚 LOGISTICS: Procesando envíos para ${company.name}...`);
+
+    // 1. Obtener Configuración para ver Eventos
+    const settings = await GameSettings.findOne({ isActive: true });
+    const costModifier = settings.currentModifiers ? settings.currentModifiers.logisticsCost : 1.0;
+
+    if (costModifier !== 1.0) {
+        console.log(`   ⚠️ EVENTO ACTIVO: Costo Logístico ajustado por factor x${costModifier}`);
+    }
 
     const shipmentsByProduct = {};
     for (const shipment of decision.logistics) {
@@ -34,21 +44,22 @@ exports.processLogistics = async (decision, company) => {
         const totalNeeded = shipments.reduce((sum, s) => sum + s.units, 0);
 
         if (factoryItem.units < totalNeeded) {
-            console.warn(`⚠️ LOGÍSTICA: Stock insuficiente para producto ${productId}. Omitiendo.`);
             continue; 
         }
 
         for (const shipment of shipments) {
             const isAir = shipment.method === 'aereo';
-            const shippingCostPerUnit = isAir ? COST_AIR : COST_GROUND;
-            const rounds = isAir ? TIME_AIR : TIME_GROUND;
+            let shippingCostPerUnit = isAir ? COST_AIR : COST_GROUND;
             
+            // APLICAR MODIFICADOR DE EVENTO
+            shippingCostPerUnit *= costModifier;
+
+            const rounds = isAir ? TIME_AIR : TIME_GROUND;
             const shipmentTotalCost = shipment.units * shippingCostPerUnit;
             
             factoryItem.units -= shipment.units;
 
             const currentUnitCost = parseFloat(factoryItem.unitCost.toString());
-            // Capitalizamos el flete en el costo del producto en destino
             const landedCost = currentUnitCost + shippingCostPerUnit;
 
             company.inTransit.products.push({
@@ -66,9 +77,8 @@ exports.processLogistics = async (decision, company) => {
     let currentCash = parseFloat(company.cash.toString());
     company.cash = currentCash - totalShippingCost;
     
-    console.log(`   💰 Logística Total: -$${totalShippingCost}`);
+    console.log(`   💰 Logística Total: -$${totalShippingCost.toFixed(2)}`);
 
-    // RETORNO DEL RECIBO FINANCIERO
     return { 
         cost: totalShippingCost 
     };

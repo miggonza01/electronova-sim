@@ -36,7 +36,13 @@ const seedData = async () => {
             totalProductionCapacity: 6000,
             initialCompanyCash: 500000.00,
             obsolescencePenaltyRate: 10,
-            maxRounds: 12
+            maxRounds: 12,
+            // Inicializar modificadores neutros
+            currentModifiers: {
+                logisticsCost: 1.0,
+                rawMaterialCost: 1.0,
+                demand: 1.0
+            }
         });
 
         // 3. MATERIAS PRIMAS
