@@ -20,6 +20,7 @@ const companyRoutes = require('./routes/companyRoutes');
 const decisionRoutes = require('./routes/decisionRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const productRoutes = require('./routes/productRoutes');
+const financialRoutes = require('./routes/financialRoutes');
 
 // --- 3. IMPORTACIÓN DE SOCKETS ---
 // Asegúrate de que tu socketHandler exporte una función que reciba (io)
@@ -92,6 +93,7 @@ app.use('/api/companies', companyRoutes); // Estandarización plural
 app.use('/api/decisions', decisionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/financials', financialRoutes);
 
 // Ruta de Salud (Health Check)
 app.get('/', (req, res) => {
