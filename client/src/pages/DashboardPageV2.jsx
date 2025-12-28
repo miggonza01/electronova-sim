@@ -1,16 +1,14 @@
 // ============================================
 // FILE: client/src/pages/DashboardPageV2.jsx
-// PURPOSE: Dashboard con Gráficas de Tendencia y KPIs
+// PURPOSE: Dashboard con Gráficas Corregidas (Fix Recharts Sizing)
 // ============================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.v2.js';
 import logo from '../assets/LogoElectroNova.png';
 import DecisionDetailModal from '../components/DecisionDetailModal';
 import { useGameSimulation } from '../hooks/useGameSimulation';
-
-// Librería de Gráficos
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 
 const DashboardPageV2 = () => {
@@ -38,7 +36,6 @@ const DashboardPageV2 = () => {
             api.get('/decisions/current').catch(() => ({ data: { data: null } }))
         ]);
 
-        // Mock Materials
         const matData = [{ name: 'Alfa', baseCost: 15 }, { name: 'Beta', baseCost: 25 }, { name: 'Omega', baseCost: 5 }];
 
         setCompany(profileRes.data.company);
@@ -69,11 +66,9 @@ const DashboardPageV2 = () => {
   const formatMoney = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
   const formatDate = (dateString) => new Date(dateString).toLocaleDateString() + ' ' + new Date(dateString).toLocaleTimeString();
 
-  // --- PREPARACIÓN DE DATOS PARA GRÁFICAS ---
-  const chartData = React.useMemo(() => {
+  // Datos para gráficas
+  const chartData = useMemo(() => {
     let accumulatedNetIncome = 0;
-    
-    // Mapeamos el historial financiero
     const data = financialHistory.map(f => {
         accumulatedNetIncome += parseFloat(f.incomeStatement.netIncome);
         return {
@@ -84,8 +79,6 @@ const DashboardPageV2 = () => {
             revenue: parseFloat(f.incomeStatement.revenue)
         };
     });
-
-    // Agregamos el punto inicial (Ronda 0) para que la gráfica no empiece vacía
     if (data.length === 0) {
         return [{ round: 'Inicio', netIncome: 0, accumulated: 0, cash: 500000, revenue: 0 }];
     }
@@ -153,46 +146,50 @@ const DashboardPageV2 = () => {
             </div>
         </div>
 
-        {/* --- SECCIÓN GRÁFICAS --- */}
+        {/* --- SECCIÓN GRÁFICAS (CORREGIDA PARA RECHARTS) --- */}
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: 'white', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
             📊 Análisis de Tendencias
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
             
-            {/* GRÁFICA 1: Utilidad Acumulada */}
-            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px' }}>
+            {/* GRÁFICA 1 */}
+            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px', position: 'relative' }}>
                 <h3 style={{ color: '#94A3B8', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '1rem' }}>UTILIDAD NETA ACUMULADA</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id="colorUtilidad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
-                        <XAxis dataKey="round" stroke="#64748B" />
-                        <YAxis stroke="#64748B" />
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' }} />
-                        <Area type="monotone" dataKey="accumulated" stroke="#10B981" fillOpacity={1} fill="url(#colorUtilidad)" name="Utilidad Acum." />
-                    </AreaChart>
-                </ResponsiveContainer>
+                <div style={{ width: '100%', height: '280px', position: 'relative' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorUtilidad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <XAxis dataKey="round" stroke="#64748B" />
+                            <YAxis stroke="#64748B" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' }} />
+                            <Area type="monotone" dataKey="accumulated" stroke="#10B981" fillOpacity={1} fill="url(#colorUtilidad)" name="Utilidad Acum." />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
 
-            {/* GRÁFICA 2: Caja vs Ventas */}
-            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px' }}>
+            {/* GRÁFICA 2 */}
+            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px', position: 'relative' }}>
                 <h3 style={{ color: '#94A3B8', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '1rem' }}>EVOLUCIÓN DE CAJA Y VENTAS</h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis dataKey="round" stroke="#64748B" />
-                        <YAxis stroke="#64748B" />
-                        <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' }} />
-                        <Legend />
-                        <Line type="monotone" dataKey="cash" stroke="#3B82F6" strokeWidth={2} name="Caja" dot={{ r: 4 }} />
-                        <Line type="monotone" dataKey="revenue" stroke="#F59E0B" strokeWidth={2} name="Ventas" dot={{ r: 4 }} />
-                    </LineChart>
-                </ResponsiveContainer>
+                <div style={{ width: '100%', height: '280px', position: 'relative' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="round" stroke="#64748B" />
+                            <YAxis stroke="#64748B" />
+                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' }} />
+                            <Legend />
+                            <Line type="monotone" dataKey="cash" stroke="#3B82F6" strokeWidth={2} name="Caja" dot={{ r: 4 }} />
+                            <Line type="monotone" dataKey="revenue" stroke="#F59E0B" strokeWidth={2} name="Ventas" dot={{ r: 4 }} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
 

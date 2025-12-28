@@ -1,18 +1,19 @@
 // ============================================
 // FILE: client/src/pages/DecisionPageV2.jsx
-// PURPOSE: Terminal de Decisiones (Orden: Compras -> Producción)
+// PURPOSE: Terminal de Decisiones (Restaurado)
 // ============================================
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.v2.js';
-import logo from '../assets/LogoElectroNova.png'; // Logo
+import logo from '../assets/LogoElectroNova.png';
 
 // Componentes
 import ProductionTab from '../components/tabs/ProductionTab';
 import ProcurementTab from '../components/tabs/ProcurementTab';
 import LogisticsTab from '../components/tabs/LogisticsTab';
 import CommercialTab from '../components/tabs/CommercialTab';
+import ToolsTab from '../components/tabs/ToolsTab';
 import DecisionSummary from '../components/DecisionSummary';
 import { useGameSimulation } from '../hooks/useGameSimulation';
 
@@ -20,8 +21,6 @@ const DecisionPageV2 = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
-  // CAMBIO 1: Pestaña por defecto ahora es 'procurement'
   const [activeTab, setActiveTab] = useState('procurement');
   
   const [products, setProducts] = useState([]);
@@ -58,7 +57,7 @@ const DecisionPageV2 = () => {
                 setDecision(currentDecRes.data.data);
             }
         } catch (error) {
-            console.log("Iniciando decisión en blanco.");
+            console.log("Iniciando decisión en blanco.", error);
         }
 
       } catch (error) {
@@ -95,35 +94,16 @@ const DecisionPageV2 = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      // CAMBIO 2: Reordenamiento lógico del switch (opcional, pero ordenado)
       case 'procurement':
-        return <ProcurementTab 
-            currentData={decision.procurement}
-            onUpdate={(data) => updateDecisionSection('procurement', data)}
-            simulation={simulation}
-        />;
+        return <ProcurementTab currentData={decision.procurement} onUpdate={(data) => updateDecisionSection('procurement', data)} simulation={simulation} />;
       case 'production':
-        return <ProductionTab 
-            products={products} 
-            quota={company.productionQuota} 
-            currentData={decision.production}
-            onUpdate={(data) => updateDecisionSection('production', data)}
-            simulation={simulation}
-        />;
+        return <ProductionTab products={products} quota={company.productionQuota} currentData={decision.production} onUpdate={(data) => updateDecisionSection('production', data)} simulation={simulation} />;
       case 'logistics':
-        return <LogisticsTab 
-            products={products}
-            currentData={decision.logistics}
-            onUpdate={(data) => updateDecisionSection('logistics', data)}
-            simulation={simulation}
-        />;
+        return <LogisticsTab products={products} currentData={decision.logistics} onUpdate={(data) => updateDecisionSection('logistics', data)} simulation={simulation} />;
       case 'commercial':
-        return <CommercialTab 
-            products={products}
-            currentData={decision.commercial}
-            onUpdate={(data) => updateDecisionSection('commercial', data)}
-            simulation={simulation}
-        />;
+        return <CommercialTab products={products} currentData={decision.commercial} onUpdate={(data) => updateDecisionSection('commercial', data)} simulation={simulation} />;
+      case 'tools':
+        return <ToolsTab company={company} />;
       default: return null;
     }
   };
@@ -141,7 +121,6 @@ const DecisionPageV2 = () => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans pb-32 flex flex-col">
-      {/* HEADER CON LOGO */}
       <header className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-6 py-4 flex justify-between items-center shadow-lg">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <img src={logo} alt="Logo" style={{ height: '32px' }} />
@@ -153,19 +132,18 @@ const DecisionPageV2 = () => {
         <button onClick={() => navigate('/dashboard')} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Salir</button>
       </header>
 
-      {/* TABS REORDENADOS */}
       <div className="px-6 mt-6 border-b border-slate-700 flex overflow-x-auto">
         <TabButton id="procurement" label="1. Compras" icon="🛒" />
         <TabButton id="production" label="2. Producción" icon="🏭" />
         <TabButton id="logistics" label="3. Logística" icon="✈️" />
         <TabButton id="commercial" label="4. Ventas" icon="💲" />
+        <TabButton id="tools" label="5. Herramientas" icon="🛠️" />
       </div>
 
       <main className="p-6 max-w-5xl mx-auto w-full flex-grow">
         {renderTabContent()}
       </main>
 
-      {/* COPYRIGHT FOOTER */}
       <footer style={{ textAlign: 'center', padding: '1rem', color: '#475569', fontSize: '0.75rem', marginBottom: '4rem' }}>
         © Maribel Pinheiro & Miguel González | Dic-2025
       </footer>

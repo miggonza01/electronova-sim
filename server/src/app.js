@@ -18,6 +18,7 @@ const decisionRoutes = require('./routes/decisionRoutes');
 const financialRoutes = require('./routes/financialRoutes'); // <--- FALTABA POSIBLEMENTE
 const productRoutes = require('./routes/productRoutes');     // <--- FALTABA POSIBLEMENTE
 // const companyRoutes = require('./routes/companyRoutes'); // (Opcional si no se usa directo)
+const toolsRoutes = require('./routes/toolsRoutes');
 
 // --- 2. CONFIGURACIÓN SERVIDOR ---
 const app = express();
@@ -54,6 +55,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/decisions', decisionRoutes);   // Debe existir decisionRoutes.js
 app.use('/api/financials', financialRoutes); // Debe existir financialRoutes.js
 app.use('/api/products', productRoutes);     // Debe existir productRoutes.js
+app.use('/api/tools', toolsRoutes);          // Debe existir toolsRoutes.js
 
 // Ruta de salud
 app.get('/', (req, res) => res.send('ElectroNova API v2.3 Online'));
