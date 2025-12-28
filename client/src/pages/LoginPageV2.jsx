@@ -1,11 +1,11 @@
 // ============================================
 // FILE: client/src/pages/LoginPageV2.jsx
-// PURPOSE: Login con Branding Oficial y Copyright
+// PURPOSE: Login con Redirección basada en Rol (Admin vs Student)
 // ============================================
 
 import React, { useState } from 'react';
 import api from '../services/api.v2.js';
-import logo from '../assets/LogoElectroNova.png'; // Importamos el logo
+import logo from '../assets/LogoElectroNova.png';
 
 const LoginPageV2 = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -23,10 +23,22 @@ const LoginPageV2 = () => {
 
     try {
       const response = await api.post('/auth/login', formData);
-      const { token, name, companyId } = response.data;
+      
+      // Extraemos el ROL de la respuesta
+      const { token, name, companyId, role } = response.data;
+      
       localStorage.setItem('token_v2', token);
-      localStorage.setItem('user_v2', JSON.stringify({ name, companyId }));
-      window.location.href = '/dashboard'; 
+      localStorage.setItem('user_v2', JSON.stringify({ name, companyId, role }));
+      
+      // --- LÓGICA DE REDIRECCIÓN INTELIGENTE ---
+      if (role === 'admin') {
+          console.log("👮 Acceso Admin detectado. Redirigiendo al Panel Docente...");
+          window.location.href = '/admin';
+      } else {
+          console.log("🎓 Acceso Estudiante detectado. Redirigiendo al Dashboard...");
+          window.location.href = '/dashboard'; 
+      }
+      
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Error de conexión con el servidor v2');
@@ -41,20 +53,27 @@ const LoginPageV2 = () => {
       alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter', sans-serif", position: 'relative'
     }}>
       
-      {/* CONTENEDOR CENTRAL */}
       <div style={{ 
         backgroundColor: '#1E293B', padding: '2.5rem', borderRadius: '1rem', 
         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', width: '100%', maxWidth: '400px',
         border: '1px solid #334155', zIndex: 10
       }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          {/* LOGO E IDENTIDAD */}
-          <img src={logo} alt="ElectroNova Logo" style={{ height: '60px', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem' }} />
+          <img 
+            src={logo} 
+            alt="ElectroNova Logo" 
+            style={{ 
+                height: '60px', 
+                marginBottom: '1rem',
+                display: 'block',
+                margin: '0 auto 1rem' 
+            }} 
+          />
           <h2 style={{ color: '#F8FAFC', fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-            Simulador de Estrategias de Negocios v2.0
+            Simulador de Estrategias de Negocios
           </h2>
           <p style={{ color: '#94A3B8', fontSize: '0.875rem' }}>
-            Acceso
+            Acceso Corporativo v2.0
           </p>
         </div>
 
@@ -69,7 +88,7 @@ const LoginPageV2 = () => {
             <label style={{ display: 'block', color: '#CBD5E1', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Email Corporativo</label>
             <input type="email" name="email" value={formData.email} onChange={handleChange} required
               style={{ width: '100%', padding: '0.75rem', backgroundColor: '#0F172A', border: '1px solid #334155', borderRadius: '0.5rem', color: 'white', outline: 'none' }}
-              placeholder="ceo@electronova.inc"
+              placeholder="user@electronova.inc"
             />
           </div>
 
@@ -89,7 +108,6 @@ const LoginPageV2 = () => {
         </form>
       </div>
 
-      {/* COPYRIGHT FOOTER */}
       <div style={{ position: 'absolute', bottom: '1rem', color: '#64748B', fontSize: '0.75rem', textAlign: 'center' }}>
         © Maribel Pinheiro & Miguel González | Dic-2025
       </div>

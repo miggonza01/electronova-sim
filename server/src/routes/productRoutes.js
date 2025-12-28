@@ -1,6 +1,6 @@
 // ============================================
 // FILE: server/src/routes/productRoutes.js
-// PURPOSE: Rutas para Productos
+// PURPOSE: Catálogo de Productos
 // ============================================
 
 const express = require('express');

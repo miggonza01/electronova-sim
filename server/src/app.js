@@ -1,111 +1,67 @@
 // ============================================
 // FILE: server/src/app.js
-// VERSION: v2.0.0-alpha.1
-// PURPOSE: Orquestador principal del Backend (Soporte Híbrido v1.3/v2.0)
-// CHANGE LOG: Refactorización completa para soportar entorno aislado v2
+// VERSION: v2.3.0-stable
+// PURPOSE: Orquestador principal de Rutas y Configuración
 // ============================================
 
-// --- 1. IMPORTACIONES DEL NÚCLEO ---
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
-require('dotenv').config(); // Carga variables si no se usó dotenv-cli
+require('dotenv').config();
 
-// --- 2. IMPORTACIÓN DE RUTAS (Basado en tu estructura) ---
+// --- 1. IMPORTACIÓN DE RUTAS ---
 const authRoutes = require('./routes/authRoutes');
-const companyRoutes = require('./routes/companyRoutes');
-const decisionRoutes = require('./routes/decisionRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const productRoutes = require('./routes/productRoutes');
-const financialRoutes = require('./routes/financialRoutes');
+const decisionRoutes = require('./routes/decisionRoutes');
+const financialRoutes = require('./routes/financialRoutes'); // <--- FALTABA POSIBLEMENTE
+const productRoutes = require('./routes/productRoutes');     // <--- FALTABA POSIBLEMENTE
+// const companyRoutes = require('./routes/companyRoutes'); // (Opcional si no se usa directo)
 
-// --- 3. IMPORTACIÓN DE SOCKETS ---
-// Asegúrate de que tu socketHandler exporte una función que reciba (io)
-const socketHandler = require('./sockets/socketHandler');
-
-// --- 4. INICIALIZACIÓN DE SERVIDOR ---
+// --- 2. CONFIGURACIÓN SERVIDOR ---
 const app = express();
-const server = http.createServer(app); // Servidor HTTP nativo para soportar WebSockets
+const server = http.createServer(app);
 
-// Configuración de Socket.io
 const io = new Server(server, {
     cors: {
-        // En desarrollo v2 permitimos cualquier origen para facilitar pruebas
-        origin: process.env.NODE_ENV === 'development' ? "*" : [
-            "https://electronova-sim.vercel.app",
-            "http://localhost:5173"
-        ],
+        origin: "*", // Permitir conexiones desde Frontend v2 (puerto 5174)
         methods: ["GET", "POST"]
     }
 });
 
-// Inyectar instancia de IO en la app para usarla en controladores (req.app.get('io'))
 app.set('io', io);
 
-// Inicializar lógica de Sockets
-// Nota: Si socketHandler no es una función, comenta esta línea temporalmente
-try {
-    if (typeof socketHandler === 'function') {
-        socketHandler(io);
-    } else {
-        console.warn('⚠️ socketHandler no exporta una función. Sockets no inicializados en app.js');
-    }
-} catch (error) {
-    console.warn('⚠️ Error al cargar socketHandler:', error.message);
-}
-
-// --- 5. MIDDLEWARES GLOBALES ---
+// --- 3. MIDDLEWARES ---
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- 6. CONEXIÓN A BASE DE DATOS (SMART SWITCHING) ---
-// Esta lógica permite usar la BD de desarrollo si existe la variable V2
+// --- 4. BASE DE DATOS ---
 const dbUri = process.env.MONGODB_URI_V2 || process.env.MONGODB_URI;
-
 if (!dbUri) {
-    console.error('❌ FATAL ERROR: No se ha definido ninguna cadena de conexión a MongoDB.');
+    console.error('❌ FATAL: No MongoDB URI.');
     process.exit(1);
 }
 
-// Extracción del nombre de la BD para feedback visual
-const dbName = dbUri.split('/').pop().split('?')[0];
-
-console.log('----------------------------------------------------');
-console.log(`🔌 INICIANDO SISTEMA ELECTRONOVA...`);
-console.log(`🎯 MODO: ${process.env.MONGODB_URI_V2 ? '🛠️  DESARROLLO V2 (AISLADO)' : '🚀 PRODUCCIÓN V1'}`);
-console.log(`🗄️  BASE DE DATOS: ${dbName}`);
-console.log('----------------------------------------------------');
-
 mongoose.connect(dbUri)
-    .then(() => console.log(`✅ CONEXIÓN EXITOSA A MONGODB`))
-    .catch((err) => {
-        console.error('❌ ERROR CRÍTICO DE BASE DE DATOS:', err);
-        process.exit(1);
-    });
+    .then(() => console.log(`✅ MONGODB CONECTADO: ${dbUri.split('/').pop().split('?')[0]}`))
+    .catch(err => console.error('❌ ERROR DB:', err));
 
-// --- 7. MONTAJE DE RUTAS ---
+// --- 5. MONTAJE DE RUTAS (ENDPOINTS) ---
 app.use('/api/auth', authRoutes);
-app.use('/api/companies', companyRoutes); // Estandarización plural
-app.use('/api/decisions', decisionRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/financials', financialRoutes);
+app.use('/api/decisions', decisionRoutes);   // Debe existir decisionRoutes.js
+app.use('/api/financials', financialRoutes); // Debe existir financialRoutes.js
+app.use('/api/products', productRoutes);     // Debe existir productRoutes.js
 
-// Ruta de Salud (Health Check)
-app.get('/', (req, res) => {
-    res.send(`ElectroNova API Running - Mode: ${process.env.MONGODB_URI_V2 ? 'v2-DEV' : 'PROD'}`);
-});
+// Ruta de salud
+app.get('/', (req, res) => res.send('ElectroNova API v2.3 Online'));
 
-// --- 8. ARRANQUE DEL SERVIDOR ---
+// --- 6. ARRANQUE ---
 const PORT = process.env.PORT || 5000;
-
 server.listen(PORT, () => {
     console.log(`🚀 SERVIDOR CORRIENDO EN PUERTO: ${PORT}`);
-    console.log(`📡 SOCKETS ACTIVOS`);
 });
 
-module.exports = app; // Exportar para tests si es necesario
+module.exports = app;

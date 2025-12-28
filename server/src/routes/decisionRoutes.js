@@ -1,23 +1,24 @@
 // ============================================
 // FILE: server/src/routes/decisionRoutes.js
-// PURPOSE: Rutas para gestión de decisiones (Corregido)
+// PURPOSE: Rutas de Decisiones (Guardar, Leer Actual, Historial)
 // ============================================
 
 const express = require('express');
 const router = express.Router();
-
-// IMPORTACIÓN CONSOLIDADA (Una sola línea para todas las funciones)
 const { 
     saveDecision, 
     getCurrentDecision, 
-    getDecisionHistory 
+    getDecisionHistory // <--- CRÍTICO: Debe estar importado
 } = require('../controllers/decisionController');
-
 const { protect } = require('../middlewares/authMiddleware');
 
-// Definición de rutas
+// Validar importación (Debugging)
+if (!saveDecision || !getCurrentDecision || !getDecisionHistory) {
+    console.error("❌ ERROR: Funciones faltantes en decisionController");
+}
+
 router.post('/', protect, saveDecision);
 router.get('/current', protect, getCurrentDecision);
-router.get('/history', protect, getDecisionHistory); // Nueva ruta para el dashboard
+router.get('/history', protect, getDecisionHistory); // <--- CRÍTICO: Esta es la ruta que da 404
 
 module.exports = router;
