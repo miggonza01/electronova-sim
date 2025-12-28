@@ -157,3 +157,26 @@ exports.processRound = async (req, res) => {
         res.status(500).json({ message: 'Error crítico al procesar la ronda', error: error.message });
     }
 };
+
+// @desc    Obtener historial de una empresa específica (Para el Admin)
+// @route   GET /api/admin/companies/:id/history
+exports.getCompanyHistory = async (req, res) => {
+    try {
+        const companyId = req.params.id;
+        
+        // Validar que la empresa exista
+        const company = await Company.findById(companyId);
+        if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        // Buscar decisiones
+        const history = await Decision.find({ companyId }).sort({ round: 1 });
+
+        res.json({
+            success: true,
+            companyName: company.name,
+            data: history
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error recuperando historial' });
+    }
+};

@@ -10,7 +10,8 @@ const {
     getMyGames, 
     getGameDetails, 
     startGame, 
-    processRound 
+    processRound,
+    getCompanyHistory
 } = require('../controllers/adminController');
 
 const { protect } = require('../middlewares/authMiddleware');
@@ -27,5 +28,8 @@ router.get('/games/:id', getGameDetails);
 // Control de Flujo
 router.post('/games/:id/start', startGame);
 router.post('/games/:id/process', processRound);
+
+// Inspección
+router.get('/companies/:id/history', getCompanyHistory); 
 
 module.exports = router;
