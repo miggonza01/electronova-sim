@@ -115,9 +115,13 @@ exports.login = async (req, res) => {
 // @access  Private
 exports.getMe = async (req, res) => {
     try {
+        // 1. Buscar Usuario
         const user = await User.findById(req.user.id).select('-password');
+        
+        // 2. Buscar Empresa asociada a este usuario
         const company = await Company.findOne({ user: req.user.id });
         
+        // 3. Devolver ambos objetos
         res.json({
             user,
             company

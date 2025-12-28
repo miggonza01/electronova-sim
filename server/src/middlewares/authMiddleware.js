@@ -1,30 +1,39 @@
-// server/src/middlewares/authMiddleware.js
+// ============================================
+// FILE: server/src/middlewares/authMiddleware.js
+// PURPOSE: Proteger rutas verificando Token JWT
+// ============================================
+
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 exports.protect = async (req, res, next) => {
-  let token;
+    let token;
 
-  // 1. Verificar si el header tiene "Authorization: Bearer <token>"
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      // Extraer el token (quitar la palabra "Bearer ")
-      token = req.headers.authorization.split(' ')[1];
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            // Obtener token del header (Bearer <token>)
+            token = req.headers.authorization.split(' ')[1];
 
-      // Decodificar
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            // Verificar token
+            // Nota: Usamos la misma lógica de secreto que en authController
+            const secret = process.env.JWT_SECRET_V2 || process.env.JWT_SECRET;
+            const decoded = jwt.verify(token, secret);
 
-      // Buscar al usuario en la DB y agregarlo a la request (req.user)
-      req.user = await User.findById(decoded.id).select('-password');
+            // Obtener usuario del token
+            req.user = await User.findById(decoded.id).select('-password');
 
-      next(); // Dejar pasar al siguiente paso
-    } catch (error) {
-      console.error(error);
-      return res.status(401).json({ success: false, error: 'Token no válido, autorización denegada' });
+            if (!req.user) {
+                return res.status(401).json({ message: 'Usuario no encontrado con este token' });
+            }
+
+            next();
+        } catch (error) {
+            console.error('Error de Auth:', error.message);
+            res.status(401).json({ message: 'No autorizado, token fallido' });
+        }
     }
-  }
 
-  if (!token) {
-    return res.status(401).json({ success: false, error: 'No hay token, autorización denegada' });
-  }
+    if (!token) {
+        res.status(401).json({ message: 'No autorizado, no hay token' });
+    }
 };

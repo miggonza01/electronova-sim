@@ -1,10 +1,23 @@
+// ============================================
+// FILE: server/src/routes/decisionRoutes.js
+// PURPOSE: Rutas para gestión de decisiones (Corregido)
+// ============================================
+
 const express = require('express');
 const router = express.Router();
-const { processRound, getGameStatus } = require('../controllers/adminController');
-// const { protect, admin } = require('../middlewares/authMiddleware');
 
-// Rutas protegidas (Simplificado para dev v2)
-router.post('/process-round', processRound); // Agregar middlewares protect/admin después
-router.get('/status', getGameStatus);
+// IMPORTACIÓN CONSOLIDADA (Una sola línea para todas las funciones)
+const { 
+    saveDecision, 
+    getCurrentDecision, 
+    getDecisionHistory 
+} = require('../controllers/decisionController');
+
+const { protect } = require('../middlewares/authMiddleware');
+
+// Definición de rutas
+router.post('/', protect, saveDecision);
+router.get('/current', protect, getCurrentDecision);
+router.get('/history', protect, getDecisionHistory); // Nueva ruta para el dashboard
 
 module.exports = router;

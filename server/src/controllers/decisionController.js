@@ -87,3 +87,23 @@ exports.getCurrentDecision = async (req, res) => {
         res.status(500).json({ message: 'Error del servidor' });
     }
 };
+
+// @desc    Obtener historial de decisiones
+// @route   GET /api/decisions/history
+// @access  Private
+exports.getDecisionHistory = async (req, res) => {
+    try {
+        const company = await Company.findOne({ user: req.user.id });
+        if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        const history = await Decision.find({ companyId: company._id }).sort({ round: 1 });
+
+        res.status(200).json({
+            success: true,
+            count: history.length,
+            data: history
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error del servidor' });
+    }
+};
