@@ -28,7 +28,12 @@ const UserSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  currentGame: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Game',
+        default: null
+    }
 });
 
 // --- CORRECCIÓN AQUÍ ---

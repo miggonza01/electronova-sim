@@ -1,20 +1,23 @@
 // ============================================
 // FILE: server/src/services/marketEngineV2.js
-// VERSION: v2.2.0-events
-// PURPOSE: Motor de Ventas con sensibilidad a Eventos de Demanda
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: Motor de Ventas (Contexto Sala)
 // ============================================
 
 const Market = require('../models/Market');
 const Product = require('../models/Product');
-const GameSettings = require('../models/GameSettings'); // Nuevo import
 const inventoryService = require('./inventoryService');
 
-exports.calculateSales = async (market, product, activeCompanies, allDecisions) => {
-    // 1. Obtener Modificador de Demanda
-    // Nota: Para optimización, idealmente pasaríamos 'settings' como argumento,
-    // pero para mantener la firma simple en v2 lo buscamos aquí (cacheado por Mongoose usualmente).
-    const settings = await GameSettings.findOne({ isActive: true });
-    const demandModifier = settings.currentModifiers ? settings.currentModifiers.demand : 1.0;
+/**
+ * Calcula ventas y RETORNA resultados financieros por empresa.
+ * @param {Object} gameConfig - Configuración específica de la sala (para modificadores de demanda)
+ */
+exports.calculateSales = async (market, product, activeCompanies, allDecisions, gameConfig) => {
+    
+    // 1. Obtener Modificador de Demanda desde la Config del Juego
+    const demandModifier = (gameConfig.modifiers && gameConfig.modifiers.demand) 
+        ? gameConfig.modifiers.demand 
+        : 1.0;
 
     const randomFactor = 1.0; 
     
@@ -27,10 +30,7 @@ exports.calculateSales = async (market, product, activeCompanies, allDecisions) 
 
     const competitors = [];
 
-    // --- (El resto del código es idéntico al anterior, solo cambia el cálculo de totalDemand arriba) ---
-    // Copia la lógica de iteración de competidores, scores y asignación del paso 2.3
-    // Para no hacerte copiar y pegar gigante, aquí está el bloque resumido:
-
+    // 2. Preparar Competidores
     for (const company of activeCompanies) {
         const decision = allDecisions.find(d => d.companyId.toString() === company._id.toString());
         let price = 0;
@@ -69,6 +69,7 @@ exports.calculateSales = async (market, product, activeCompanies, allDecisions) 
 
     if (competitors.length === 0) return {};
 
+    // 3. Calcular Scores
     const prices = competitors.map(c => c.price);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
@@ -89,6 +90,7 @@ exports.calculateSales = async (market, product, activeCompanies, allDecisions) 
     const totalScore = competitors.reduce((sum, c) => sum + c.score, 0) || 1;
     const roundResults = {};
 
+    // 4. Asignar Ventas
     for (const comp of competitors) {
         let potentialDemand = totalDemand * (comp.score / totalScore);
         
@@ -116,7 +118,7 @@ exports.calculateSales = async (market, product, activeCompanies, allDecisions) 
             let currentCash = parseFloat(comp.company.cash.toString());
             comp.company.cash = currentCash + comp.revenue;
 
-            console.log(`   ✅ VENTA: ${comp.company.name} | ${realSales}u @ $${comp.price} | Rev: $${comp.revenue} (Demanda Global: ${totalDemand.toFixed(0)})`);
+            console.log(`   ✅ VENTA: ${comp.company.name} | ${realSales}u @ $${comp.price} | Rev: $${comp.revenue.toFixed(2)}`);
 
             roundResults[comp.company._id] = {
                 revenue: comp.revenue,

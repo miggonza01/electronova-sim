@@ -1,7 +1,7 @@
 // ============================================
 // FILE: server/src/services/roundProcessor.js
-// VERSION: v2.3.0-stable
-// PURPOSE: Orquestador Final (Ops + Finanzas + Eventos)
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: Orquestador Final (Soporte Multi-Sala)
 // ============================================
 
 const mongoose = require('mongoose');
@@ -9,7 +9,7 @@ const Company = require('../models/Company');
 const Decision = require('../models/Decision');
 const Product = require('../models/Product');
 const Market = require('../models/Market');
-const GameSettings = require('../models/GameSettings');
+const Game = require('../models/Game');
 
 // Servicios
 const capacityService = require('./capacityService');
@@ -20,7 +20,7 @@ const logisticsService = require('./logisticsService');
 const marketEngineV2 = require('./marketEngineV2');
 const obsolescenceService = require('./obsolescenceService');
 const accountingService = require('./accountingService');
-const eventEngine = require('./eventEngine'); // <--- NUEVO
+const eventEngine = require('./eventEngine');
 
 const withTransaction = async (work) => {
     const session = await mongoose.startSession();
@@ -39,29 +39,32 @@ const withTransaction = async (work) => {
     }
 };
 
-exports.processGameRound = async () => {
-    console.log(`\n🔄 ROUND PROCESSOR v2.3: Iniciando...`);
+exports.processGameRound = async (gameId) => {
+    console.log(`\n🔄 ROUND PROCESSOR MULTIPLAYER: Iniciando para Game ID ${gameId}...`);
 
     return await withTransaction(async (session) => {
-        // 0. CARGAR DATOS
-        const settings = await GameSettings.findOne({ isActive: true }).session(session);
-        if (!settings) throw new Error("GameSettings missing");
+        // 0. CARGAR JUEGO
+        const game = await Game.findById(gameId).session(session);
+        if (!game) throw new Error("Game not found");
         
-        const currentRound = settings.currentRound;
-        const activeCompanies = await Company.find({ isBankrupt: false }).session(session);
+        const currentRound = game.currentRound;
+        const activeCompanies = await Company.find({ gameId: game._id, isBankrupt: false }).session(session);
         
-        // INICIALIZAR ACUMULADOR FINANCIERO
+        console.log(`📅 Procesando Ronda ${currentRound} para sala ${game.code} (${activeCompanies.length} empresas)...`);
+
+        // Extraer configuración para pasarla a los servicios
+        const gameConfig = game.config;
+
+        // Inicializar acumulador financiero
         const financialOps = {};
         activeCompanies.forEach(c => {
-            financialOps[c._id] = { 
-                revenue: 0, cogs: 0, marketing: 0, logistics: 0, obsolescence: 0 
-            };
+            financialOps[c._id] = { revenue: 0, cogs: 0, marketing: 0, logistics: 0, obsolescence: 0 };
         });
 
         // =================================================================
         // PASO 1 & 2: CAPACIDAD E INVENTARIO
         // =================================================================
-        await capacityService.calculateAndAssignQuotas(activeCompanies);
+        await capacityService.calculateAndAssignQuotas(activeCompanies, gameConfig.totalProductionCapacity);
         
         for (const company of activeCompanies) {
             await inventoryService.processArrivals(company);
@@ -71,7 +74,10 @@ exports.processGameRound = async () => {
         // =================================================================
         // PASO 3: OPERACIONES
         // =================================================================
-        const allDecisions = await Decision.find({ round: currentRound }).session(session);
+        const allDecisions = await Decision.find({ 
+            companyId: { $in: activeCompanies.map(c => c._id) }, 
+            round: currentRound 
+        }).session(session);
         
         for (const company of activeCompanies) {
             const decision = allDecisions.find(d => d.companyId.toString() === company._id.toString());
@@ -84,9 +90,10 @@ exports.processGameRound = async () => {
                         company.cash = currentCash - totalMarketing;
                     }
 
-                    await procurementService.processPurchases(decision, company);
+                    // Pasamos gameConfig a los servicios que lo necesitan
+                    await procurementService.processPurchases(decision, company, gameConfig);
                     await productionService.processProduction(decision, company);
-                    await logisticsService.processLogistics(decision, company);
+                    await logisticsService.processLogistics(decision, company, gameConfig);
                     
                 } catch (e) {
                     console.error(`Error Ops ${company.name}: ${e.message}`);
@@ -102,7 +109,7 @@ exports.processGameRound = async () => {
 
         for (const market of markets) {
             for (const product of products) {
-                const marketResults = await marketEngineV2.calculateSales(market, product, activeCompanies, allDecisions);
+                const marketResults = await marketEngineV2.calculateSales(market, product, activeCompanies, allDecisions, gameConfig);
                 for (const [compId, res] of Object.entries(marketResults)) {
                     if (financialOps[compId]) {
                         financialOps[compId].revenue += res.revenue;
@@ -113,18 +120,16 @@ exports.processGameRound = async () => {
         }
 
         // =================================================================
-        // PASO 5: CIERRE, CONTABILIDAD Y EVENTOS
+        // PASO 5: CIERRE
         // =================================================================
         for (const company of activeCompanies) {
-            // Obsolescencia
-            const obsCost = obsolescenceService.calculateObsolescenceCost(company, settings.obsolescencePenaltyRate);
+            const obsCost = obsolescenceService.calculateObsolescenceCost(company, gameConfig.obsolescencePenaltyRate);
             if (obsCost > 0) {
                 financialOps[company._id].obsolescence = obsCost;
                 let currentCash = parseFloat(company.cash.toString());
                 company.cash = currentCash - obsCost;
             }
 
-            // Reportes Financieros
             await accountingService.closeAccountingRound(
                 company, 
                 currentRound, 
@@ -136,14 +141,13 @@ exports.processGameRound = async () => {
             await company.save({ session }); 
         }
 
-        // AVANZAR RELOJ GLOBAL
-        settings.currentRound += 1;
-        await settings.save({ session });
+        // EVENTOS Y AVANCE
+        // Pasamos el objeto 'game' completo para que eventEngine modifique game.config.modifiers
+        await eventEngine.triggerEventForNextRound(game, session);
 
-        // GENERAR EVENTOS PARA LA NUEVA RONDA (FUTURO)
-        // Pasamos la sesión para que sea atómico
-        await eventEngine.triggerEventForNextRound(settings.currentRound, session);
+        game.currentRound += 1;
+        await game.save({ session });
 
-        return { success: true, nextRound: settings.currentRound };
+        return { success: true, nextRound: game.currentRound };
     });
 };

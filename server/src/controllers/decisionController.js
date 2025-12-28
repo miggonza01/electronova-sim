@@ -1,39 +1,40 @@
 // ============================================
 // FILE: server/src/controllers/decisionController.js
-// VERSION: v2.0.0-alpha.1
-// PURPOSE: API para que los estudiantes guarden sus decisiones
-// SPEC REF: T1.5 - Endpoints de Decisiones
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: API de Decisiones (Contexto Game)
 // ============================================
 
 const Decision = require('../models/Decision');
-const GameSettings = require('../models/GameSettings');
 const Company = require('../models/Company');
+const Game = require('../models/Game'); // Reemplaza a GameSettings
 
-// @desc    Guardar o Actualizar decisión para la ronda actual
+// @desc    Guardar o Actualizar decisión
 // @route   POST /api/decisions
 // @access  Private (Student)
 exports.saveDecision = async (req, res) => {
     try {
-        // 1. Obtener Ronda Actual
-        const settings = await GameSettings.findOne({ isActive: true });
-        if (!settings) return res.status(500).json({ message: 'Error de configuración de juego' });
-
-        const currentRound = settings.currentRound;
-
-        // 2. Identificar Empresa del Usuario
-        // Asumimos que req.user.id viene del middleware de auth
+        // 1. Identificar Empresa del Usuario
         const company = await Company.findOne({ user: req.user.id });
         if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
 
         if (company.isBankrupt) {
-            return res.status(400).json({ message: 'Tu empresa está en bancarrota. No puedes tomar decisiones.' });
+            return res.status(400).json({ message: 'Tu empresa está en bancarrota.' });
         }
 
-        // 3. Validar Estructura Básica (Opcional: usar Joi aquí para validación estricta)
+        // 2. Obtener el Juego (Sala)
+        const game = await Game.findById(company.gameId);
+        if (!game) return res.status(404).json({ message: 'Partida no encontrada' });
+
+        if (game.status !== 'ACTIVE') {
+            return res.status(400).json({ message: 'La partida no está activa.' });
+        }
+
+        // 3. Validar Ronda
+        const currentRound = game.currentRound;
+
+        // 4. Upsert Decisión
         const { production, procurement, logistics, commercial } = req.body;
 
-        // 4. Upsert (Crear o Actualizar)
-        // Buscamos si ya existe decisión para esta empresa y ronda
         const decision = await Decision.findOneAndUpdate(
             { companyId: company._id, round: currentRound },
             {
@@ -62,25 +63,26 @@ exports.saveDecision = async (req, res) => {
     }
 };
 
-// @desc    Obtener decisión de la ronda actual (para rellenar el formulario)
+// @desc    Obtener decisión actual
 // @route   GET /api/decisions/current
 // @access  Private
 exports.getCurrentDecision = async (req, res) => {
     try {
-        const settings = await GameSettings.findOne({ isActive: true });
         const company = await Company.findOne({ user: req.user.id });
-        
         if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        const game = await Game.findById(company.gameId);
+        if (!game) return res.status(404).json({ message: 'Partida no encontrada' });
 
         const decision = await Decision.findOne({ 
             companyId: company._id, 
-            round: settings.currentRound 
+            round: game.currentRound 
         });
 
         res.status(200).json({
             success: true,
-            round: settings.currentRound,
-            data: decision || null // Si es null, el front debe mostrar formulario vacío
+            round: game.currentRound,
+            data: decision || null
         });
 
     } catch (error) {
@@ -88,7 +90,7 @@ exports.getCurrentDecision = async (req, res) => {
     }
 };
 
-// @desc    Obtener historial de decisiones
+// @desc    Obtener historial
 // @route   GET /api/decisions/history
 // @access  Private
 exports.getDecisionHistory = async (req, res) => {

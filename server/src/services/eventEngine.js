@@ -1,17 +1,13 @@
 // ============================================
 // FILE: server/src/services/eventEngine.js
-// VERSION: v2.2.0-alpha.1
-// PURPOSE: Generador de eventos aleatorios (Caos Controlado)
-// SPEC REF: T3.2 - EventEngine
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: Generador de eventos aleatorios (Modifica Game.config)
 // ============================================
 
-const GameSettings = require('../models/GameSettings');
 const Event = require('../models/Event');
 
-// Probabilidad de evento (0.15 = 15%)
 const EVENT_PROBABILITY = 0.15;
 
-// Catálogo de Desastres y Milagros
 const SCENARIOS = [
     {
         type: 'LOGISTICS_STRIKE',
@@ -44,43 +40,43 @@ const SCENARIOS = [
 ];
 
 /**
- * Determina y aplica eventos para la NUEVA ronda.
- * @param {Number} nextRound - Número de la ronda que va a comenzar
- * @param {Object} session - Sesión de Mongoose (opcional)
- * @param {Boolean} forceEvent - Para testing: fuerza que ocurra algo
+ * Determina y aplica eventos para la NUEVA ronda de un JUEGO específico.
+ * @param {Object} game - Documento del Juego (Mongoose Document)
+ * @param {Object} session - Sesión de transacción
+ * @param {Boolean} forceEvent - Para testing
  */
-exports.triggerEventForNextRound = async (nextRound, session = null, forceEvent = false) => {
-    console.log(`🎲 EVENT ENGINE: Calculando destino para Ronda ${nextRound}...`);
+exports.triggerEventForNextRound = async (game, session = null, forceEvent = false) => {
+    const nextRound = game.currentRound + 1;
+    console.log(`🎲 EVENT ENGINE: Calculando destino para ${game.code} Ronda ${nextRound}...`);
 
-    // 1. Obtener Settings
-    const settings = await GameSettings.findOne({ isActive: true }).session(session);
-    if (!settings) throw new Error("Settings not found");
-
-    // 2. Reiniciar Modificadores (Vuelta a la normalidad)
-    settings.currentModifiers = {
+    // 1. Resetear Modificadores (Vuelta a la normalidad para la nueva ronda)
+    // Importante: Mongoose requiere reasignar el objeto o marcar como modificado si es Mixed, 
+    // pero aquí está definido en el Schema, así que asignamos directo.
+    game.config.modifiers = {
         logisticsCost: 1.0,
         rawMaterialCost: 1.0,
         demand: 1.0
     };
 
-    // 3. Tirar los dados
+    // 2. Tirar los dados
     const roll = Math.random();
     const shouldTrigger = forceEvent || (roll < EVENT_PROBABILITY);
 
     if (!shouldTrigger) {
         console.log(`   ☀️ Clima tranquilo. Sin eventos.`);
-        await settings.save({ session });
+        // No creamos documento Event, solo guardamos el reset de modificadores (que se hará al guardar el game)
         return null;
     }
 
-    // 4. Seleccionar Evento Aleatorio
+    // 3. Seleccionar Evento
     const scenario = SCENARIOS[Math.floor(Math.random() * SCENARIOS.length)];
     
-    // 5. Aplicar Efectos
-    scenario.apply(settings.currentModifiers);
-    await settings.save({ session });
+    // 4. Aplicar Efectos (Modifica el objeto game en memoria)
+    scenario.apply(game.config.modifiers);
 
-    // 6. Publicar Noticia
+    // 5. Publicar Noticia (Persistencia)
+    // TODO: En Fase 5 completa, agregar gameId al esquema Event para filtrar noticias por sala.
+    // Por ahora, creamos el evento genérico (visible si filtramos por ronda, pero idealmente por gameId).
     const newEvent = new Event({
         round: nextRound,
         type: scenario.type,

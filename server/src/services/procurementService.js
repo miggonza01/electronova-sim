@@ -1,30 +1,38 @@
 // ============================================
 // FILE: server/src/services/procurementService.js
-// VERSION: v2.2.0-events
-// PURPOSE: Procesar compras aplicando modificadores de eventos
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: Procesar compras aplicando configuración de la Sala
 // ============================================
 
 const RawMaterial = require('../models/RawMaterial');
-const GameSettings = require('../models/GameSettings');
 
-exports.processPurchases = async (decision, company) => {
+exports.processPurchases = async (decision, company, gameConfig) => {
     let totalCostDeduction = 0;
     
     if (!decision.procurement || decision.procurement.length === 0) {
-        return { cost: 0 }; 
+        return { cost: 0, ethicsBonus: 0 }; 
     }
 
     console.log(`🛒 PROCUREMENT: Procesando órdenes para ${company.name}...`);
 
-    const settings = await GameSettings.findOne({ isActive: true });
     const rawMaterials = await RawMaterial.find({});
     
-    // Obtener modificador de evento (Default 1.0)
-    const costModifier = settings.currentModifiers ? settings.currentModifiers.rawMaterialCost : 1.0;
+    // 1. Obtener modificador de evento de la configuración de la sala
+    // Si no existe (ej: versiones viejas), usar 1.0
+    const costModifier = (gameConfig.modifiers && gameConfig.modifiers.rawMaterialCost) 
+        ? gameConfig.modifiers.rawMaterialCost 
+        : 1.0;
     
     if (costModifier !== 1.0) {
         console.log(`   ⚠️ EVENTO ACTIVO: Costo MP ajustado por factor x${costModifier}`);
     }
+
+    // 2. Configuración de Proveedores (Merge defaults con config de sala)
+    const supplierConfig = {
+        local: { costMultiplier: 1.2, ethicsBonus: 5, leadTime: 1 },
+        imported: { costMultiplier: 1.0, ethicsBonus: 0, leadTime: 2 },
+        ...(gameConfig.supplierConfig || {})
+    };
 
     const materialMap = {};
     rawMaterials.forEach(rm => {
@@ -39,13 +47,13 @@ exports.processPurchases = async (decision, company) => {
         const baseCost = materialMap[order.materialType];
         if (!baseCost) continue;
 
-        const supplierConfig = settings.supplierConfig[order.supplierType];
+        const sConf = supplierConfig[order.supplierType];
         
         // FÓRMULA FINAL: (Unidades * Base * MultiplicadorProveedor * MultiplicadorEvento)
-        const orderCost = order.units * baseCost * supplierConfig.costMultiplier * costModifier;
-        const roundsUntilArrival = supplierConfig.leadTime;
+        const orderCost = order.units * baseCost * sConf.costMultiplier * costModifier;
+        const roundsUntilArrival = sConf.leadTime;
 
-        ethicsPointsToAdd += supplierConfig.ethicsBonus;
+        ethicsPointsToAdd += sConf.ethicsBonus;
 
         company.inTransit.materials.push({
             materialType: order.materialType,

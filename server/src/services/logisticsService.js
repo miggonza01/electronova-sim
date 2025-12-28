@@ -1,17 +1,15 @@
 // ============================================
 // FILE: server/src/services/logisticsService.js
-// VERSION: v2.2.0-events
-// PURPOSE: Procesar logística aplicando modificadores de eventos
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: Procesar logística aplicando configuración de la Sala
 // ============================================
-
-const GameSettings = require('../models/GameSettings'); // Nuevo import
 
 const COST_AIR = 15.00;
 const COST_GROUND = 5.00;
 const TIME_AIR = 1;
 const TIME_GROUND = 2;
 
-exports.processLogistics = async (decision, company) => {
+exports.processLogistics = async (decision, company, gameConfig) => {
     let totalShippingCost = 0;
 
     if (!decision.logistics || decision.logistics.length === 0) {
@@ -20,9 +18,10 @@ exports.processLogistics = async (decision, company) => {
 
     console.log(`🚚 LOGISTICS: Procesando envíos para ${company.name}...`);
 
-    // 1. Obtener Configuración para ver Eventos
-    const settings = await GameSettings.findOne({ isActive: true });
-    const costModifier = settings.currentModifiers ? settings.currentModifiers.logisticsCost : 1.0;
+    // 1. Obtener Modificador de Evento
+    const costModifier = (gameConfig.modifiers && gameConfig.modifiers.logisticsCost)
+        ? gameConfig.modifiers.logisticsCost
+        : 1.0;
 
     if (costModifier !== 1.0) {
         console.log(`   ⚠️ EVENTO ACTIVO: Costo Logístico ajustado por factor x${costModifier}`);

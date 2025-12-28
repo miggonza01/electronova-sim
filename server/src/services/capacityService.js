@@ -1,24 +1,18 @@
 // ============================================
 // FILE: server/src/services/capacityService.js
-// VERSION: v2.0.1-fix
-// PURPOSE: Calcular cuotas (Versión In-Memory para evitar WriteConflict)
+// VERSION: v2.3.0-multiplayer
+// PURPOSE: Calcular cuotas (In-Memory, Stateless)
 // ============================================
-
-const GameSettings = require('../models/GameSettings');
 
 /**
  * Calcula la cuota y actualiza el objeto en memoria.
- * NO guarda en BD (eso lo hace el roundProcessor al final).
  * @param {Array} activeCompanies - Array de documentos Mongoose
+ * @param {Number} totalCapacity - Capacidad total definida en la Sala (Game)
  */
-exports.calculateAndAssignQuotas = async (activeCompanies) => {
+exports.calculateAndAssignQuotas = async (activeCompanies, totalCapacity) => {
     console.log('🏭 SERVICE: Calculando Capacidad de Planta...');
 
     try {
-        const settings = await GameSettings.findOne({ isActive: true });
-        if (!settings) throw new Error('GameSettings no encontrados.');
-
-        const totalCapacity = settings.totalProductionCapacity;
         const count = activeCompanies.length;
 
         if (count === 0) return;
@@ -28,8 +22,7 @@ exports.calculateAndAssignQuotas = async (activeCompanies) => {
 
         console.log(`📊 DATOS: Capacidad Total [${totalCapacity}] / Empresas [${count}] = Cuota [${quotaPerCompany}]`);
 
-        // Actualización EN MEMORIA (In-Memory)
-        // No hacemos .save() ni .updateMany() aquí para no romper la transacción padre
+        // Actualización EN MEMORIA
         activeCompanies.forEach(company => {
             company.productionQuota = quotaPerCompany;
         });

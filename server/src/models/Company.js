@@ -69,6 +69,12 @@ const OutboundProductSchema = new mongoose.Schema({
 // --- ESQUEMA PRINCIPAL ---
 
 const CompanySchema = new mongoose.Schema({
+    // Vinculación a Partida
+    gameId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Game', 
+        required: true 
+    },
     // Identidad y Auth
     user: {
         type: mongoose.Schema.Types.ObjectId,
