@@ -10,12 +10,15 @@ import logo from '../assets/LogoElectroNova.png';
 import DecisionDetailModal from '../components/DecisionDetailModal';
 import { useGameSimulation } from '../hooks/useGameSimulation';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import io from 'socket.io-client';
+import CountdownTimer from '../components/CountdownTimer';
 
 const DashboardPageV2 = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
   const [company, setCompany] = useState(null);
+  const [gameInfo, setGameInfo] = useState(null);
   const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -39,6 +42,7 @@ const DashboardPageV2 = () => {
         const matData = [{ name: 'Alfa', baseCost: 15 }, { name: 'Beta', baseCost: 25 }, { name: 'Omega', baseCost: 5 }];
 
         setCompany(profileRes.data.company);
+        setGameInfo(profileRes.data.game); // <--- GUARDAR DATOS DEL JUEGO (Timer)
         setUser(profileRes.data.user);
         setProducts(prodRes.data.data);
         setMaterials(matData);
@@ -56,6 +60,23 @@ const DashboardPageV2 = () => {
 
     fetchDashboardData();
   }, []);
+
+  // Bloque #2 Lógica de Sockets (Dentro del componente)
+  useEffect(() => {
+    // Conectar socket
+    const socket = io(import.meta.env.VITE_API_URL.replace('/api', '')); // Base URL
+
+    socket.on('round_change', (data) => {
+        // Verificar si el evento es para mi juego (necesitamos el gameId en el estado)
+        if (company && data.gameId === company.gameId) {
+            alert(`📢 ¡ATENCIÓN! La Ronda ${data.newRound} ha comenzado.`);
+            // Recargar datos
+            window.location.reload(); 
+        }
+    });
+
+    return () => socket.disconnect();
+  }, [company]); // Dependencia company para tener el ID
 
   const handleLogout = () => {
     localStorage.removeItem('token_v2');
@@ -105,7 +126,13 @@ const DashboardPageV2 = () => {
                 <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#F8FAFC' }}>{user?.name}</div>
                 <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>{company.name}</div>
             </div>
+            {/* Bloque #1 Header (Agregar Timer) */}
             <div style={{ textAlign: 'right' }}>
+                <div style={{ marginBottom: '0.25rem' }}>
+                    {/* Pasamos la fecha límite que debe venir en company.game (necesitamos popularlo) */}
+                    {/* Usamos gameInfo en lugar de company.game */}
+                    <CountdownTimer targetDate={gameInfo?.roundEndsAt} />
+                </div>
                 <div style={{ fontSize: '0.75rem', color: '#64748B' }}>RONDA ACTUAL</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#F8FAFC' }}>#{company.currentRound}</div>
             </div>

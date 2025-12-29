@@ -11,7 +11,9 @@ const {
     getGameDetails, 
     startGame, 
     processRound,
-    getCompanyHistory
+    getCompanyHistory,
+    updateGame,
+    deleteGame
 } = require('../controllers/adminController');
 
 const { protect } = require('../middlewares/authMiddleware');
@@ -24,6 +26,8 @@ router.use(protect);
 router.post('/games', createGame);
 router.get('/games', getMyGames);
 router.get('/games/:id', getGameDetails);
+router.put('/games/:id', updateGame);    // Editar
+router.delete('/games/:id', deleteGame); // Eliminar
 
 // Control de Flujo
 router.post('/games/:id/start', startGame);

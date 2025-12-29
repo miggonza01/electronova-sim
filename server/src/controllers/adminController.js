@@ -1,35 +1,56 @@
 // ============================================
 // FILE: server/src/controllers/adminController.js
-// VERSION: v2.3.0-multiplayer
-// PURPOSE: Gestión de Salas y Control de Juego
+// VERSION: v2.3.1-fix
+// PURPOSE: Gestión de Salas (Fix Delete Imports & Deep Clean)
 // ============================================
 
 const Game = require('../models/Game');
 const Company = require('../models/Company');
 const Decision = require('../models/Decision');
+const User = require('../models/User'); // <--- FALTABA ESTA IMPORTACIÓN CRÍTICA
+const FinancialStatement = require('../models/FinancialStatement'); // Nuevo para limpieza
 const roundProcessor = require('../services/roundProcessor');
 
-// Helper: Generar código de sala aleatorio (Ej: "FIN-9X2A")
+// Helper: Generar código de sala aleatorio
 const generateGameCode = () => {
     return 'ROOM-' + Math.random().toString(36).substring(2, 6).toUpperCase();
 };
 
-// @desc    Crear nueva sala/partida
+// Helper: Calcular fecha límite
+const calculateDeadline = (config) => {
+    const now = new Date();
+    const { days = 0, hours = 0, minutes = 10 } = config.duration || {};
+    now.setDate(now.getDate() + parseInt(days));
+    now.setHours(now.getHours() + parseInt(hours));
+    now.setMinutes(now.getMinutes() + parseInt(minutes));
+    return now;
+};
+
+// @desc    Crear nueva sala
 // @route   POST /api/admin/games
 exports.createGame = async (req, res) => {
     try {
-        const { name, maxRounds, initialCash } = req.body;
+        const { name, config } = req.body;
 
         const game = await Game.create({
             name: name || "Nueva Partida",
             code: generateGameCode(),
             adminId: req.user.id,
-            status: 'WAITING', // Esperando alumnos
-            currentRound: 0,   // Lobby
+            status: 'WAITING',
+            currentRound: 0,
             config: {
-                maxRounds: maxRounds || 8,
-                initialCash: initialCash || 500000,
-                // ... resto de defaults del Schema
+                maxRounds: config?.maxRounds || 8,
+                initialCash: config?.initialCash || 500000,
+                totalProductionCapacity: 6000,
+                marketResearchRound: config?.marketResearchRound || 1,
+                marketResearchCost: config?.marketResearchCost || 15000,
+                duration: {
+                    days: config?.duration?.days || 0,
+                    hours: config?.duration?.hours || 0,
+                    minutes: config?.duration?.minutes || 10
+                },
+                obsolescencePenaltyRate: 10,
+                modifiers: { logisticsCost: 1, rawMaterialCost: 1, demand: 1 }
             }
         });
 
@@ -39,7 +60,7 @@ exports.createGame = async (req, res) => {
     }
 };
 
-// @desc    Obtener todas las partidas del admin
+// @desc    Obtener mis partidas
 // @route   GET /api/admin/games
 exports.getMyGames = async (req, res) => {
     try {
@@ -50,18 +71,15 @@ exports.getMyGames = async (req, res) => {
     }
 };
 
-// @desc    Obtener detalle de una partida (Tablero de Control)
+// @desc    Detalle de partida
 // @route   GET /api/admin/games/:id
 exports.getGameDetails = async (req, res) => {
     try {
         const game = await Game.findById(req.params.id);
         if (!game) return res.status(404).json({ message: 'Partida no encontrada' });
 
-        // Obtener empresas (alumnos) en esta sala
         const companies = await Company.find({ gameId: game._id });
 
-        // Verificar quién ha enviado decisión para la ronda actual
-        // (Si la ronda es 0, nadie puede enviar)
         let decisions = [];
         if (game.currentRound > 0) {
             decisions = await Decision.find({ 
@@ -70,7 +88,6 @@ exports.getGameDetails = async (req, res) => {
             });
         }
 
-        // Mapear estado de alumnos
         const studentsStatus = companies.map(comp => {
             const hasSubmitted = decisions.some(d => d.companyId.toString() === comp._id.toString());
             return {
@@ -82,18 +99,13 @@ exports.getGameDetails = async (req, res) => {
             };
         });
 
-        res.json({
-            success: true,
-            game,
-            students: studentsStatus
-        });
-
+        res.json({ success: true, game, students: studentsStatus });
     } catch (error) {
         res.status(500).json({ message: 'Error obteniendo detalles' });
     }
 };
 
-// @desc    Iniciar Juego (Pasar de Lobby a Ronda 1)
+// @desc    Iniciar Juego
 // @route   POST /api/admin/games/:id/start
 exports.startGame = async (req, res) => {
     try {
@@ -102,8 +114,8 @@ exports.startGame = async (req, res) => {
 
         game.status = 'ACTIVE';
         game.currentRound = 1;
+        game.roundEndsAt = calculateDeadline(game.config);
         
-        // Asignar cuotas iniciales a las empresas inscritas
         const companies = await Company.find({ gameId: game._id });
         const quota = Math.floor(game.config.totalProductionCapacity / (companies.length || 1));
         
@@ -115,13 +127,12 @@ exports.startGame = async (req, res) => {
 
         await game.save();
         res.json({ success: true, message: 'Juego Iniciado', game });
-
     } catch (error) {
         res.status(500).json({ message: 'Error al iniciar' });
     }
 };
 
-// @desc    Procesar Ronda (Avanzar Turno)
+// @desc    Procesar Ronda
 // @route   POST /api/admin/games/:id/process
 exports.processRound = async (req, res) => {
     try {
@@ -133,49 +144,95 @@ exports.processRound = async (req, res) => {
 
         console.log(`👮 ADMIN: Procesando ronda ${game.currentRound} para sala ${game.code}...`);
         
-        // LLAMADA AL MOTOR DE JUEGO
         const result = await roundProcessor.processGameRound(gameId);
 
-        // Verificar Fin del Juego
         if (result.nextRound > game.config.maxRounds) {
             game.status = 'FINISHED';
-            await game.save();
+            game.roundEndsAt = null;
+        } else {
+            game.roundEndsAt = calculateDeadline(game.config);
+        }
+        await game.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('round_change', { 
+                gameId: game._id, 
+                newRound: result.nextRound,
+                roundEndsAt: game.roundEndsAt 
+            });
         }
 
-        // Notificar sockets (opcional)
-        const io = req.app.get('io');
-        if (io) io.emit(`game_${gameId}_update`, { type: 'ROUND_PROCESSED', newRound: result.nextRound });
-
-        res.status(200).json({
-            success: true,
-            message: 'Ronda procesada exitosamente',
-            nextRound: result.nextRound
-        });
-
+        res.status(200).json({ success: true, message: 'Ronda procesada', nextRound: result.nextRound });
     } catch (error) {
         console.error('Admin Process Error:', error);
-        res.status(500).json({ message: 'Error crítico al procesar la ronda', error: error.message });
+        res.status(500).json({ message: 'Error crítico al procesar', error: error.message });
     }
 };
 
-// @desc    Obtener historial de una empresa específica (Para el Admin)
+// @desc    Editar partida
+// @route   PUT /api/admin/games/:id
+exports.updateGame = async (req, res) => {
+    try {
+        const { config, name } = req.body;
+        const game = await Game.findById(req.params.id);
+
+        if (!game) return res.status(404).json({ message: 'Partida no encontrada' });
+
+        if (name) game.name = name;
+        if (config) {
+            game.config = { ...game.config.toObject(), ...config };
+        }
+
+        await game.save();
+        res.json({ success: true, message: 'Partida actualizada', data: game });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualizar' });
+    }
+};
+
+// @desc    Eliminar partida (Limpieza en Cascada)
+// @route   DELETE /api/admin/games/:id
+exports.deleteGame = async (req, res) => {
+    try {
+        const gameId = req.params.id;
+        
+        // 1. Identificar empresas a borrar para limpiar sus datos hijos
+        const companies = await Company.find({ gameId });
+        const companyIds = companies.map(c => c._id);
+
+        // 2. Eliminar Datos Hijos (Decisiones y Finanzas)
+        await Decision.deleteMany({ companyId: { $in: companyIds } });
+        await FinancialStatement.deleteMany({ companyId: { $in: companyIds } });
+
+        // 3. Eliminar Empresas
+        await Company.deleteMany({ gameId });
+        
+        // 4. Desvincular Usuarios
+        await User.updateMany({ currentGame: gameId }, { $set: { currentGame: null } });
+
+        // 5. Eliminar Juego
+        await Game.findByIdAndDelete(gameId);
+
+        console.log(`🗑️ ADMIN: Sala ${gameId} eliminada con todos sus datos.`);
+        res.json({ success: true, message: 'Partida y datos asociados eliminados' });
+    } catch (error) {
+        console.error("Error deleting game:", error);
+        res.status(500).json({ message: 'Error al eliminar', error: error.message });
+    }
+};
+
+// @desc    Historial de empresa
 // @route   GET /api/admin/companies/:id/history
 exports.getCompanyHistory = async (req, res) => {
     try {
         const companyId = req.params.id;
-        
-        // Validar que la empresa exista
         const company = await Company.findById(companyId);
         if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
 
-        // Buscar decisiones
         const history = await Decision.find({ companyId }).sort({ round: 1 });
 
-        res.json({
-            success: true,
-            companyName: company.name,
-            data: history
-        });
+        res.json({ success: true, companyName: company.name, data: history });
     } catch (error) {
         res.status(500).json({ message: 'Error recuperando historial' });
     }

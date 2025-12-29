@@ -20,22 +20,30 @@ const GameSchema = new mongoose.Schema({
         default: 'WAITING' 
     },
     currentRound: { type: Number, default: 0 }, // 0 = Lobby, 1 = Ronda 1
+
+    // NUEVO: Fecha límite para la ronda actual (para el temporizador)
+    roundEndsAt: { type: Date },
     
     // Configuración de la Partida (Hereda de GameSettings pero personalizable por sala)
     config: {
         maxRounds: { type: Number, default: 8 },
-        roundDurationMinutes: { type: Number, default: 10 },
         initialCash: { type: Number, default: 500000 },
         totalProductionCapacity: { type: Number, default: 6000 },
         
-        // Ronda en la que se habilita el estudio de mercado (0 = siempre, 99 = nunca)
+        // NUEVO: Duración desglosada
+        duration: {
+            days: { type: Number, default: 0 },
+            hours: { type: Number, default: 0 },
+            minutes: { type: Number, default: 10 }
+        },
+
+        // Configuración de Mercado
         marketResearchRound: { type: Number, default: 1 }, 
         marketResearchCost: { type: Number, default: 15000 },
 
         // Parámetros económicos
         obsolescencePenaltyRate: { type: Number, default: 10 },
         
-        // Modificadores de Eventos (Específicos de esta sala)
         modifiers: {
             logisticsCost: { type: Number, default: 1.0 },
             rawMaterialCost: { type: Number, default: 1.0 },
