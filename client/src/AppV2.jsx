@@ -11,6 +11,7 @@ import LoginPageV2 from './pages/LoginPageV2';
 import DashboardPageV2 from './pages/DashboardPageV2';
 import DecisionPageV2 from './pages/DecisionPageV2';
 import AdminDashboardV2 from './pages/AdminDashboardV2'; // <--- VERIFICA ESTA IMPORTACIÓN
+import GameOverPage from './pages/GameOverPage';
 
 const AppV2 = () => {
   return (
@@ -29,6 +30,10 @@ const AppV2 = () => {
 
         {/* Fallback: Cualquier ruta desconocida vuelve al login */}
         <Route path="*" element={<Navigate to="/" replace />} />
+
+        {/* Ruta de Game Over */}
+        <Route path="/game-over" element={<GameOverPage />} />
+
       </Routes>
     </Router>
   );

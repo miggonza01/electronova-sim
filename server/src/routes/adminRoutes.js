@@ -13,7 +13,9 @@ const {
     processRound,
     getCompanyHistory,
     updateGame,
-    deleteGame
+    deleteGame,
+    getGameResults,
+    getGameRanking
 } = require('../controllers/adminController');
 
 const { protect } = require('../middlewares/authMiddleware');
@@ -28,6 +30,8 @@ router.get('/games', getMyGames);
 router.get('/games/:id', getGameDetails);
 router.put('/games/:id', updateGame);    // Editar
 router.delete('/games/:id', deleteGame); // Eliminar
+router.get('/games/:id/results', getGameResults);
+router.get('/games/:id/ranking', getGameRanking);
 
 // Control de Flujo
 router.post('/games/:id/start', startGame);

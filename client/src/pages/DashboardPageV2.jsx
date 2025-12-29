@@ -1,6 +1,6 @@
 // ============================================
 // FILE: client/src/pages/DashboardPageV2.jsx
-// PURPOSE: Dashboard con Gráficas Corregidas (Fix Recharts Sizing)
+// PURPOSE: Dashboard con Redirección de Fin de Juego
 // ============================================
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -9,17 +9,17 @@ import api from '../services/api.v2.js';
 import logo from '../assets/LogoElectroNova.png';
 import DecisionDetailModal from '../components/DecisionDetailModal';
 import { useGameSimulation } from '../hooks/useGameSimulation';
+import CountdownTimer from '../components/CountdownTimer';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import io from 'socket.io-client';
-import CountdownTimer from '../components/CountdownTimer';
 
 const DashboardPageV2 = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
   const [company, setCompany] = useState(null);
-  const [gameInfo, setGameInfo] = useState(null);
   const [user, setUser] = useState(null);
+  const [gameInfo, setGameInfo] = useState(null);
   const [products, setProducts] = useState([]);
   const [materials, setMaterials] = useState([]);
   
@@ -39,11 +39,17 @@ const DashboardPageV2 = () => {
             api.get('/decisions/current').catch(() => ({ data: { data: null } }))
         ]);
 
+        // VERIFICACIÓN DE FIN DE JUEGO
+        if (profileRes.data.game && profileRes.data.game.status === 'FINISHED') {
+            navigate('/game-over');
+            return;
+        }
+
         const matData = [{ name: 'Alfa', baseCost: 15 }, { name: 'Beta', baseCost: 25 }, { name: 'Omega', baseCost: 5 }];
 
         setCompany(profileRes.data.company);
-        setGameInfo(profileRes.data.game); // <--- GUARDAR DATOS DEL JUEGO (Timer)
         setUser(profileRes.data.user);
+        setGameInfo(profileRes.data.game);
         setProducts(prodRes.data.data);
         setMaterials(matData);
         setDecisionHistory(histRes.data.data);
@@ -59,24 +65,30 @@ const DashboardPageV2 = () => {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [navigate]); // Agregamos navigate a dependencias
 
-  // Bloque #2 Lógica de Sockets (Dentro del componente)
+  // Bloque de código de socket reemplazado
   useEffect(() => {
     // Conectar socket
-    const socket = io(import.meta.env.VITE_API_URL.replace('/api', '')); // Base URL
+    const socket = io(import.meta.env.VITE_API_URL.replace('/api', '')); 
 
     socket.on('round_change', (data) => {
-        // Verificar si el evento es para mi juego (necesitamos el gameId en el estado)
+        // Verificar si el evento es para mi juego
         if (company && data.gameId === company.gameId) {
-            alert(`📢 ¡ATENCIÓN! La Ronda ${data.newRound} ha comenzado.`);
-            // Recargar datos
-            window.location.reload(); 
+            
+            // LÓGICA DE FIN DE JUEGO
+            if (data.gameStatus === 'FINISHED') {
+                alert("🏁 EL JUEGO HA TERMINADO. Redirigiendo a resultados...");
+                navigate('/game-over');
+            } else {
+                alert(`📢 ¡ATENCIÓN! La Ronda ${data.newRound} ha comenzado.`);
+                window.location.reload(); 
+            }
         }
     });
 
     return () => socket.disconnect();
-  }, [company]); // Dependencia company para tener el ID
+  }, [company, navigate]); // <--- Importante incluir navigate en dependencias
 
   const handleLogout = () => {
     localStorage.removeItem('token_v2');
@@ -87,7 +99,6 @@ const DashboardPageV2 = () => {
   const formatMoney = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
   const formatDate = (dateString) => new Date(dateString).toLocaleDateString() + ' ' + new Date(dateString).toLocaleTimeString();
 
-  // Datos para gráficas
   const chartData = useMemo(() => {
     let accumulatedNetIncome = 0;
     const data = financialHistory.map(f => {
@@ -126,11 +137,8 @@ const DashboardPageV2 = () => {
                 <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#F8FAFC' }}>{user?.name}</div>
                 <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>{company.name}</div>
             </div>
-            {/* Bloque #1 Header (Agregar Timer) */}
             <div style={{ textAlign: 'right' }}>
                 <div style={{ marginBottom: '0.25rem' }}>
-                    {/* Pasamos la fecha límite que debe venir en company.game (necesitamos popularlo) */}
-                    {/* Usamos gameInfo en lugar de company.game */}
                     <CountdownTimer targetDate={gameInfo?.roundEndsAt} />
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#64748B' }}>RONDA ACTUAL</div>
@@ -166,21 +174,30 @@ const DashboardPageV2 = () => {
                 </div>
                 <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#64748B' }}>Reputación</div>
             </div>
-            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', display: 'flex', alignItems: 'center' }}>
-                <button onClick={() => navigate('/decision')} style={{ backgroundColor: '#3B82F6', color: 'white', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', fontWeight: '600', border: 'none', cursor: 'pointer', width: '100%', height: '100%', fontSize: '1.1rem' }}>
+            
+            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', display: 'flex', alignItems: 'center', position: 'relative', zIndex: 50 }}>
+                <button 
+                    onClick={() => navigate('/decision')} 
+                    style={{ 
+                        backgroundColor: '#3B82F6', color: 'white', padding: '0.75rem 1.5rem', 
+                        borderRadius: '0.5rem', fontWeight: '600', border: 'none', cursor: 'pointer', 
+                        width: '100%', height: '100%', fontSize: '1.1rem',
+                        boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.5)'
+                    }}
+                >
                     Gestionar Ronda {company.currentRound} &rarr;
                 </button>
             </div>
         </div>
 
-        {/* --- SECCIÓN GRÁFICAS (CORREGIDA PARA RECHARTS) --- */}
+        {/* --- SECCIÓN GRÁFICAS --- */}
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: 'white', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
             📊 Análisis de Tendencias
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
             
             {/* GRÁFICA 1 */}
-            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px', position: 'relative' }}>
+            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px', width: '100%', minWidth: 0 }}>
                 <h3 style={{ color: '#94A3B8', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '1rem' }}>UTILIDAD NETA ACUMULADA</h3>
                 <div style={{ width: '100%', height: '280px', position: 'relative' }}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -202,7 +219,7 @@ const DashboardPageV2 = () => {
             </div>
 
             {/* GRÁFICA 2 */}
-            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px', position: 'relative' }}>
+            <div style={{ backgroundColor: '#1E293B', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #334155', height: '350px', width: '100%', minWidth: 0 }}>
                 <h3 style={{ color: '#94A3B8', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '1rem' }}>EVOLUCIÓN DE CAJA Y VENTAS</h3>
                 <div style={{ width: '100%', height: '280px', position: 'relative' }}>
                     <ResponsiveContainer width="100%" height="100%">

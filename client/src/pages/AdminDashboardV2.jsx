@@ -1,6 +1,6 @@
 // ============================================
 // FILE: client/src/pages/AdminDashboardV2.jsx
-// PURPOSE: Panel Docente (Fix Delete & Timer)
+// PURPOSE: Panel Docente (Incluye Ranking en Tiempo Real)
 // ============================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -43,23 +43,13 @@ const AdminDashboardV2 = () => {
     } catch (e) { alert("Error: " + e.message); } finally { setLoading(false); }
   };
 
-  // ELIMINAR (CORREGIDO)
   const handleDeleteGame = async (e, id) => {
-      // Detener propagación y prevenir comportamiento default
-      e.preventDefault();
-      e.stopPropagation();
-      
+      e.preventDefault(); e.stopPropagation();
       if(!window.confirm("⛔ ¿ESTÁS SEGURO? Se borrará la sala y TODOS los datos.")) return;
-      
       try {
           await api.delete(`/admin/games/${id}`);
-          // Actualización optimista: Quitamos la sala de la lista visualmente
           setGames(prev => prev.filter(g => g._id !== id));
-          // No llamamos a setRefresh aquí para evitar conflictos de renderizado
-      } catch (err) { 
-          console.error("Error deleting:", err);
-          alert("Error al eliminar: " + (err.response?.data?.message || err.message)); 
-      }
+      } catch (err) { alert("Error al eliminar: " + (err.response?.data?.message || err.message)); }
   };
 
   if (loading && games.length === 0) return <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">Cargando...</div>;
@@ -81,29 +71,19 @@ const AdminDashboardV2 = () => {
                     <h2 className="text-2xl font-bold">Mis Salas</h2>
                     <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm">+ Nueva Sala</button>
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {games.map(game => (
                         <div key={game._id} className="bg-slate-800 p-6 rounded-lg border border-slate-700 hover:border-blue-500 cursor-pointer transition-all relative group" onClick={() => setSelectedGame(game._id)}>
-                            
                             <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={(e) => { e.stopPropagation(); setEditingGame(game); }} className="bg-slate-700 hover:bg-blue-600 text-white p-1 rounded text-xs">✏️</button>
-                                {/* Botón Eliminar Corregido */}
                                 <button onClick={(e) => handleDeleteGame(e, game._id)} className="bg-slate-700 hover:bg-red-600 text-white p-1 rounded text-xs">🗑️</button>
                             </div>
-
                             <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-bold text-lg">{game.name}</h3>
                                 <span className={`text-xs px-2 py-1 rounded ${game.status === 'ACTIVE' ? 'bg-green-900 text-green-300' : 'bg-slate-700 text-slate-400'}`}>{game.status}</span>
                             </div>
                             <div className="text-2xl font-mono text-blue-400 mb-4 tracking-wider">{game.code}</div>
-                            
-                            {game.status === 'ACTIVE' && (
-                                <div className="mb-2">
-                                    <CountdownTimer targetDate={game.roundEndsAt} />
-                                </div>
-                            )}
-
+                            {game.status === 'ACTIVE' && <div className="mb-2"><CountdownTimer targetDate={game.roundEndsAt} /></div>}
                             <div className="text-sm text-slate-400">Ronda: {game.currentRound} / {game.config.maxRounds}</div>
                         </div>
                     ))}
@@ -120,6 +100,167 @@ const AdminDashboardV2 = () => {
   );
 };
 
+// --- SUB-COMPONENTE: CONTROL DE SALA ---
+const GameControlPanel = ({ gameId, onBack }) => {
+    const [data, setData] = useState(null);
+    const [processing, setProcessing] = useState(false);
+    const [inspectingCompany, setInspectingCompany] = useState(null);
+    const [studentHistory, setStudentHistory] = useState([]);
+    const [viewDecision, setViewDecision] = useState(null);
+    const [products, setProducts] = useState([]);
+    const [showRanking, setShowRanking] = useState(false); // Estado para Modal Ranking
+
+    const loadData = useCallback(() => {
+        api.get(`/admin/games/${gameId}`).then(res => setData(res.data)).catch(console.error);
+    }, [gameId]);
+
+    useEffect(() => { api.get('/products').then(res => setProducts(res.data.data)).catch(console.error); }, []);
+
+    useEffect(() => { 
+        loadData(); 
+        const interval = setInterval(loadData, 5000);
+        return () => clearInterval(interval);
+    }, [loadData]);
+
+    const handleProcess = async () => {
+        if (!window.confirm("¿Seguro que deseas cerrar la ronda? Esto es irreversible.")) return;
+        setProcessing(true);
+        try {
+            await api.post(`/admin/games/${gameId}/process`);
+            alert("Ronda procesada correctamente.");
+            loadData();
+        } catch (e) {
+            alert("Error: " + (e.response?.data?.message || e.message));
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleInspect = async (companyId) => {
+        try {
+            const res = await api.get(`/admin/companies/${companyId}/history`);
+            setStudentHistory(res.data.data);
+            setInspectingCompany(res.data.companyName);
+        } catch (e) { console.error(e); alert("Error cargando historial"); }
+    };
+
+    if (!data) return <div className="text-white p-8">Cargando sala...</div>;
+    const { game, students } = data;
+
+    return (
+        <div>
+            <button onClick={onBack} className="mb-4 text-slate-400 hover:text-white text-sm">← Volver a Salas</button>
+            <div className="flex justify-between items-end mb-6 border-b border-slate-700 pb-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-white mb-1">{game.name}</h2>
+                    <div className="flex items-center gap-4 text-sm text-slate-400">
+                        <span className="bg-slate-800 px-2 py-1 rounded border border-slate-600 font-mono text-blue-300">CÓDIGO: {game.code}</span>
+                        <span>Ronda: <strong className="text-white text-lg">{game.currentRound}</strong> / {game.config.maxRounds}</span>
+                        {game.status === 'ACTIVE' && <CountdownTimer targetDate={game.roundEndsAt} />}
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    {/* BOTÓN RANKING */}
+                    <button onClick={() => setShowRanking(true)} className="px-4 py-3 rounded font-bold text-white bg-slate-700 hover:bg-slate-600 border border-slate-500">
+                        🏆 Ver Ranking
+                    </button>
+                    {game.status === 'ACTIVE' && (
+                        <button onClick={handleProcess} disabled={processing} className={`px-6 py-3 rounded font-bold text-white shadow-lg ${processing ? 'bg-slate-600' : 'bg-red-600 hover:bg-red-500'}`}>
+                            {processing ? 'Procesando...' : '🚨 PROCESAR RONDA'}
+                        </button>
+                    )}
+                </div>
+            </div>
+            
+            {/* ... (TABLA DE ESTUDIANTES Y PANEL LATERAL IGUAL QUE ANTES) ... */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                    <table className="w-full text-left text-sm text-slate-300">
+                        <thead className="bg-slate-900 text-slate-400 uppercase font-bold">
+                            <tr><th className="p-4">Empresa</th><th className="p-4 text-right">Caja</th><th className="p-4 text-center">Estado</th><th className="p-4 text-right">Acción</th></tr>
+                        </thead>
+                        <tbody>
+                            {students.map(student => (
+                                <tr key={student.companyId} className="border-b border-slate-700 hover:bg-slate-700/50">
+                                    <td className="p-4 font-bold text-white">{student.companyName}</td>
+                                    <td className="p-4 text-right font-mono text-emerald-400">${parseFloat(student.cash).toLocaleString()}</td>
+                                    <td className="p-4 text-center">
+                                        {student.hasSubmitted ? <span className="bg-green-900 text-green-300 px-2 py-1 rounded text-xs">LISTO</span> : <span className="bg-yellow-900 text-yellow-300 px-2 py-1 rounded text-xs">PENDIENTE</span>}
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button onClick={() => handleInspect(student.companyId)} className="text-blue-400 hover:text-blue-300 font-bold text-xs border border-blue-500 px-2 py-1 rounded">🔍 Historial</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="bg-slate-800 rounded-lg border border-slate-700 p-4 h-fit">
+                    <h3 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">{inspectingCompany ? `Historial: ${inspectingCompany}` : 'Selecciona un alumno'}</h3>
+                    {!inspectingCompany ? <p className="text-slate-500 text-sm">Haz clic en "🔍 Historial" en la tabla.</p> : (
+                        <div className="space-y-2">
+                            {studentHistory.length === 0 ? <p className="text-slate-500 text-sm">Sin decisiones aún.</p> : studentHistory.map(dec => (
+                                <div key={dec._id} className="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-700 hover:border-blue-500 cursor-pointer" onClick={() => setViewDecision(dec)}>
+                                    <div><div className="font-bold text-white">Ronda {dec.round}</div><div className="text-xs text-slate-500">{new Date(dec.submittedAt).toLocaleTimeString()}</div></div>
+                                    <span className="text-blue-400 text-xs">Ver &rarr;</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* MODALES */}
+            {viewDecision && <DecisionDetailModal decision={viewDecision} products={products} onClose={() => setViewDecision(null)} />}
+            {showRanking && <RankingModal gameId={gameId} onClose={() => setShowRanking(false)} />}
+        </div>
+    );
+};
+
+// --- SUB-COMPONENTE: MODAL RANKING ---
+const RankingModal = ({ gameId, onClose }) => {
+    const [ranking, setRanking] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        api.get(`/admin/games/${gameId}/ranking`)
+           .then(res => setRanking(res.data.ranking))
+           .catch(console.error)
+           .finally(() => setLoading(false));
+    }, [gameId]);
+
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-slate-800 p-6 rounded-lg border border-slate-600 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-white">🏆 Ranking Actual</h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white font-bold text-xl">&times;</button>
+                </div>
+                
+                {loading ? <p className="text-white">Calculando puntajes...</p> : (
+                    <table className="w-full text-left text-sm text-slate-300">
+                        <thead className="bg-slate-900 text-slate-400 uppercase font-bold">
+                            <tr><th className="p-3">#</th><th className="p-3">Empresa</th><th className="p-3 text-right">Utilidad Neta</th><th className="p-3 text-right">Ventas</th><th className="p-3 text-center">WSC</th></tr>
+                        </thead>
+                        <tbody>
+                            {ranking.map((r, idx) => (
+                                <tr key={r.id} className="border-b border-slate-700">
+                                    <td className="p-3 font-bold">{idx + 1}</td>
+                                    <td className="p-3 font-bold text-white">{r.name}</td>
+                                    <td className="p-3 text-right font-mono text-emerald-400">${r.details.netIncome.toLocaleString()}</td>
+                                    <td className="p-3 text-right font-mono text-slate-300">${r.details.revenue.toLocaleString()}</td>
+                                    <td className="p-3 text-center font-bold text-lg text-yellow-400">{r.wsc}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- SUB-COMPONENTE: MODAL CONFIGURACIÓN (Reutilizable) ---
 const GameConfigModal = ({ title, initialData, onClose, onSubmit }) => {
     const [form, setForm] = useState({
         name: initialData?.name || '',
@@ -182,110 +323,6 @@ const GameConfigModal = ({ title, initialData, onClose, onSubmit }) => {
                     </div>
                 </form>
             </div>
-        </div>
-    );
-};
-
-const GameControlPanel = ({ gameId, onBack }) => {
-    const [data, setData] = useState(null);
-    const [processing, setProcessing] = useState(false);
-    const [inspectingCompany, setInspectingCompany] = useState(null);
-    const [studentHistory, setStudentHistory] = useState([]);
-    const [viewDecision, setViewDecision] = useState(null);
-    const [products, setProducts] = useState([]);
-
-    const loadData = useCallback(() => {
-        api.get(`/admin/games/${gameId}`).then(res => setData(res.data)).catch(console.error);
-    }, [gameId]);
-
-    useEffect(() => { api.get('/products').then(res => setProducts(res.data.data)).catch(console.error); }, []);
-
-    useEffect(() => { 
-        loadData(); 
-        const interval = setInterval(loadData, 5000);
-        return () => clearInterval(interval);
-    }, [loadData]);
-
-    const handleProcess = async () => {
-        if (!window.confirm("¿Seguro que deseas cerrar la ronda? Esto es irreversible.")) return;
-        setProcessing(true);
-        try {
-            await api.post(`/admin/games/${gameId}/process`);
-            alert("Ronda procesada correctamente.");
-            loadData();
-        } catch (e) {
-            alert("Error: " + (e.response?.data?.message || e.message));
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const handleInspect = async (companyId) => {
-        try {
-            const res = await api.get(`/admin/companies/${companyId}/history`);
-            setStudentHistory(res.data.data);
-            setInspectingCompany(res.data.companyName);
-        } catch (e) { console.error(e); alert("Error cargando historial"); }
-    };
-
-    if (!data) return <div className="text-white p-8">Cargando sala...</div>;
-    const { game, students } = data;
-
-    return (
-        <div>
-            <button onClick={onBack} className="mb-4 text-slate-400 hover:text-white text-sm">← Volver a Salas</button>
-            <div className="flex justify-between items-end mb-6 border-b border-slate-700 pb-4">
-                <div>
-                    <h2 className="text-3xl font-bold text-white mb-1">{game.name}</h2>
-                    <div className="flex items-center gap-4 text-sm text-slate-400">
-                        <span className="bg-slate-800 px-2 py-1 rounded border border-slate-600 font-mono text-blue-300">CÓDIGO: {game.code}</span>
-                        <span>Ronda: <strong className="text-white text-lg">{game.currentRound}</strong> / {game.config.maxRounds}</span>
-                        {game.status === 'ACTIVE' && <CountdownTimer targetDate={game.roundEndsAt} />}
-                    </div>
-                </div>
-                {game.status === 'ACTIVE' && (
-                    <button onClick={handleProcess} disabled={processing} className={`px-6 py-3 rounded font-bold text-white shadow-lg ${processing ? 'bg-slate-600' : 'bg-red-600 hover:bg-red-500'}`}>
-                        {processing ? 'Procesando...' : '🚨 PROCESAR RONDA'}
-                    </button>
-                )}
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-                    <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-900 text-slate-400 uppercase font-bold">
-                            <tr><th className="p-4">Empresa</th><th className="p-4 text-right">Caja</th><th className="p-4 text-center">Estado</th><th className="p-4 text-right">Acción</th></tr>
-                        </thead>
-                        <tbody>
-                            {students.map(student => (
-                                <tr key={student.companyId} className="border-b border-slate-700 hover:bg-slate-700/50">
-                                    <td className="p-4 font-bold text-white">{student.companyName}</td>
-                                    <td className="p-4 text-right font-mono text-emerald-400">${parseFloat(student.cash).toLocaleString()}</td>
-                                    <td className="p-4 text-center">
-                                        {student.hasSubmitted ? <span className="bg-green-900 text-green-300 px-2 py-1 rounded text-xs">LISTO</span> : <span className="bg-yellow-900 text-yellow-300 px-2 py-1 rounded text-xs">PENDIENTE</span>}
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <button onClick={() => handleInspect(student.companyId)} className="text-blue-400 hover:text-blue-300 font-bold text-xs border border-blue-500 px-2 py-1 rounded">🔍 Historial</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="bg-slate-800 rounded-lg border border-slate-700 p-4 h-fit">
-                    <h3 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">{inspectingCompany ? `Historial: ${inspectingCompany}` : 'Selecciona un alumno'}</h3>
-                    {!inspectingCompany ? <p className="text-slate-500 text-sm">Haz clic en "🔍 Historial" en la tabla.</p> : (
-                        <div className="space-y-2">
-                            {studentHistory.length === 0 ? <p className="text-slate-500 text-sm">Sin decisiones aún.</p> : studentHistory.map(dec => (
-                                <div key={dec._id} className="flex justify-between items-center bg-slate-900 p-3 rounded border border-slate-700 hover:border-blue-500 cursor-pointer" onClick={() => setViewDecision(dec)}>
-                                    <div><div className="font-bold text-white">Ronda {dec.round}</div><div className="text-xs text-slate-500">{new Date(dec.submittedAt).toLocaleTimeString()}</div></div>
-                                    <span className="text-blue-400 text-xs">Ver &rarr;</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-            {viewDecision && <DecisionDetailModal decision={viewDecision} products={products} onClose={() => setViewDecision(null)} />}
         </div>
     );
 };

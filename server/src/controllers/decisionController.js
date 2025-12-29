@@ -7,6 +7,7 @@
 const Decision = require('../models/Decision');
 const Company = require('../models/Company');
 const Game = require('../models/Game'); // Reemplaza a GameSettings
+const scoreService = require('../services/scoreService');
 
 // @desc    Guardar o Actualizar decisión
 // @route   POST /api/decisions
@@ -107,5 +108,30 @@ exports.getDecisionHistory = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: 'Error del servidor' });
+    }
+};
+
+// @desc    Ver resultados finales (Estudiante)
+// @route   GET /api/decisions/results
+exports.getResults = async (req, res) => {
+    try {
+        const company = await Company.findOne({ user: req.user.id });
+        if (!company) return res.status(404).json({ message: 'Empresa no encontrada' });
+
+        const ranking = await scoreService.calculateFinalScores(company.gameId);
+
+        res.json({ success: true, ranking: ranking.map(r => ({
+            id: r.company._id,
+            name: r.company.name,
+            wsc: r.rawScore,
+            details: {
+                netIncome: r.netIncome,
+                revenue: r.revenue,
+                ethics: r.ethics,
+                tech: r.tech
+            }
+        }))});
+    } catch (error) {
+        res.status(500).json({ message: 'Error' });
     }
 };

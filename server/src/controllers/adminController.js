@@ -10,6 +10,7 @@ const Decision = require('../models/Decision');
 const User = require('../models/User'); // <--- FALTABA ESTA IMPORTACIÓN CRÍTICA
 const FinancialStatement = require('../models/FinancialStatement'); // Nuevo para limpieza
 const roundProcessor = require('../services/roundProcessor');
+const scoreService = require('../services/scoreService');
 
 // Helper: Generar código de sala aleatorio
 const generateGameCode = () => {
@@ -134,6 +135,7 @@ exports.startGame = async (req, res) => {
 
 // @desc    Procesar Ronda
 // @route   POST /api/admin/games/:id/process
+// [MODIFICADO] Procesar Ronda (Ahora envía status por socket)
 exports.processRound = async (req, res) => {
     try {
         const gameId = req.params.id;
@@ -156,10 +158,12 @@ exports.processRound = async (req, res) => {
 
         const io = req.app.get('io');
         if (io) {
+            // [CAMBIO] Enviamos gameStatus para que el frontend sepa si redirigir a Game Over
             io.emit('round_change', { 
                 gameId: game._id, 
                 newRound: result.nextRound,
-                roundEndsAt: game.roundEndsAt 
+                roundEndsAt: game.roundEndsAt,
+                gameStatus: game.status // <--- NUEVO CAMPO CRÍTICO
             });
         }
 
@@ -167,6 +171,34 @@ exports.processRound = async (req, res) => {
     } catch (error) {
         console.error('Admin Process Error:', error);
         res.status(500).json({ message: 'Error crítico al procesar', error: error.message });
+    }
+};
+
+// [NUEVO] Obtener Ranking en Tiempo Real
+// @route GET /api/admin/games/:id/ranking
+exports.getGameRanking = async (req, res) => {
+    try {
+        const gameId = req.params.id;
+        // Reutilizamos el servicio de score que ya creamos
+        const ranking = await scoreService.calculateFinalScores(gameId);
+        
+        res.json({
+            success: true,
+            ranking: ranking.map(r => ({
+                id: r.company._id,
+                name: r.company.name,
+                wsc: r.rawScore,
+                details: {
+                    netIncome: r.netIncome,
+                    revenue: r.revenue,
+                    ethics: r.ethics,
+                    tech: r.tech
+                }
+            }))
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error calculando ranking' });
     }
 };
 
@@ -235,5 +267,39 @@ exports.getCompanyHistory = async (req, res) => {
         res.json({ success: true, companyName: company.name, data: history });
     } catch (error) {
         res.status(500).json({ message: 'Error recuperando historial' });
+    }
+};
+
+// @desc    Obtener resultados finales (Ranking)
+// @route   GET /api/admin/games/:id/results
+exports.getGameResults = async (req, res) => {
+    try {
+        const gameId = req.params.id;
+        const game = await Game.findById(gameId);
+        
+        if (!game) return res.status(404).json({ message: 'Juego no encontrado' });
+
+        // Calculamos scores al vuelo (o podríamos guardarlos en DB al finalizar)
+        const ranking = await scoreService.calculateFinalScores(gameId);
+
+        res.json({
+            success: true,
+            gameStatus: game.status,
+            ranking: ranking.map(r => ({
+                id: r.company._id,
+                name: r.company.name,
+                wsc: r.rawScore,
+                details: {
+                    netIncome: r.netIncome,
+                    revenue: r.revenue,
+                    ethics: r.ethics,
+                    tech: r.tech
+                }
+            }))
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error calculando resultados' });
     }
 };
