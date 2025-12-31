@@ -12,6 +12,9 @@ import DashboardPageV2 from './pages/DashboardPageV2';
 import DecisionPageV2 from './pages/DecisionPageV2';
 import AdminDashboardV2 from './pages/AdminDashboardV2'; // <--- VERIFICA ESTA IMPORTACIÓN
 import GameOverPage from './pages/GameOverPage';
+import StudentWiki from './pages/StudentWiki';
+import AdminWiki from './pages/AdminWiki';
+import GameSelectPage from './pages/GameSelectPage';
 
 const AppV2 = () => {
   return (
@@ -33,6 +36,12 @@ const AppV2 = () => {
 
         {/* Ruta de Game Over */}
         <Route path="/game-over" element={<GameOverPage />} />
+
+        {/* Rutas de Wiki */}
+        <Route path="/dashboard/wiki" element={<StudentWiki />} />
+        <Route path="/admin/wiki" element={<AdminWiki />} />
+
+        <Route path="/rooms" element={<GameSelectPage />} />
 
       </Routes>
     </Router>

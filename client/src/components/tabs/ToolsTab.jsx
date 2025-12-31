@@ -6,12 +6,15 @@
 import React, { useState } from 'react';
 import api from '../../services/api.v2';
 
-const ToolsTab = ({ company }) => {
+// 1. Recibimos 'game' en las props
+const ToolsTab = ({ company, game }) => {
   const [marketData, setMarketData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const COST = 15000; 
+  // 2. Leemos el costo de la configuración del juego.
+  // Si por alguna razón 'game' no cargó aún, usamos 15000 como fallback seguro.
+  const COST = game?.config?.marketResearchCost || 15000;  
 
   const handleBuy = async () => {
     if (parseFloat(company?.cash || 0) < COST) {

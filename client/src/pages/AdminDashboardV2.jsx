@@ -16,12 +16,25 @@ const AdminDashboardV2 = () => {
   const [refresh, setRefresh] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
+  const [user, setUser] = useState(null); // --- NUEVO ESTADO: USUARIO ADMIN ---
 
   useEffect(() => {
-    api.get('/admin/games')
-      .then(res => setGames(res.data.data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    // Cargar Juegos Y Perfil del Admin en paralelo
+    const loadAdminData = async () => {
+        try {
+            const [gamesRes, profileRes] = await Promise.all([
+                api.get('/admin/games'),
+                api.get('/auth/profile') // Reutilizamos este endpoint que devuelve { user, ... }
+            ]);
+            setGames(gamesRes.data.data);
+            setUser(profileRes.data.user);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+    loadAdminData();
   }, [refresh]);
 
   const submitCreateGame = async (payload) => {
@@ -59,9 +72,33 @@ const AdminDashboardV2 = () => {
       <header className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
             <img src={logo} alt="Logo" style={{ height: '30px' }} />
-            <h1 className="font-bold text-lg">Panel Docente</h1>
+            <div>
+                <h1 className="font-bold text-lg text-white">Panel Docente</h1>
+                <p className="text-xs text-blue-400">Administración de Salas</p>
+            </div>
         </div>
-        <button onClick={() => { localStorage.removeItem('token_v2'); window.location.href='/login-v2'; }} className="text-sm text-slate-400 hover:text-white">Salir</button>
+
+        <div className="flex items-center gap-6">
+
+            {/* --- INICIO CAMBIO QUIRÚRGICO: Botón Wiki Admin --- */}
+            <button 
+                onClick={() => window.location.href='/admin/wiki'} 
+                className="text-emerald-400 hover:text-white text-sm font-bold transition-colors"
+                title="Ver documentación técnica y pedagógica"
+            >
+                🎓 Guía Docente
+            </button>
+
+            {/* DATOS DEL ADMINISTRADOR */}
+            <div className="text-right hidden md:block">
+                <div className="text-sm font-bold text-white">{user?.name || 'Administrador'}</div>
+                <div className="text-xs text-slate-400">{user?.email}</div>
+            </div>
+
+            <button onClick={() => { localStorage.removeItem('token_v2'); window.location.href='/login-v2'; }} className="text-sm border border-slate-600 px-3 py-1 rounded text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+                Cerrar Sesión
+            </button>
+        </div>
       </header>
 
       <main className="p-8 max-w-6xl mx-auto">
@@ -74,23 +111,50 @@ const AdminDashboardV2 = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {games.map(game => (
                         <div key={game._id} className="bg-slate-800 p-6 rounded-lg border border-slate-700 hover:border-blue-500 cursor-pointer transition-all relative group" onClick={() => setSelectedGame(game._id)}>
-                            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); setEditingGame(game); }} className="bg-slate-700 hover:bg-blue-600 text-white p-1 rounded text-xs">✏️</button>
-                                <button onClick={(e) => handleDeleteGame(e, game._id)} className="bg-slate-700 hover:bg-red-600 text-white p-1 rounded text-xs">🗑️</button>
+                            
+                            {/* Botones de Acción (Hover) */}
+                            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                <button onClick={(e) => { e.stopPropagation(); setEditingGame(game); }} className="bg-slate-700 hover:bg-blue-600 text-white p-1 rounded text-xs" title="Editar Configuración">✏️</button>
+                                <button onClick={(e) => handleDeleteGame(e, game._id)} className="bg-slate-700 hover:bg-red-600 text-white p-1 rounded text-xs" title="Eliminar Sala">🗑️</button>
                             </div>
+
+                            {/* Encabezado Tarjeta */}
                             <div className="flex justify-between items-start mb-2">
-                                <h3 className="font-bold text-lg">{game.name}</h3>
-                                <span className={`text-xs px-2 py-1 rounded ${game.status === 'ACTIVE' ? 'bg-green-900 text-green-300' : 'bg-slate-700 text-slate-400'}`}>{game.status}</span>
+                                <h3 className="font-bold text-lg text-white truncate pr-16">{game.name}</h3>
+                                <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${game.status === 'ACTIVE' ? 'bg-green-900 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
+                                    {game.status}
+                                </span>
                             </div>
-                            <div className="text-2xl font-mono text-blue-400 mb-4 tracking-wider">{game.code}</div>
-                            {game.status === 'ACTIVE' && <div className="mb-2"><CountdownTimer targetDate={game.roundEndsAt} /></div>}
-                            <div className="text-sm text-slate-400">Ronda: {game.currentRound} / {game.config.maxRounds}</div>
+
+                            {/* Código de Sala */}
+                            <div className="text-2xl font-mono text-blue-400 mb-4 tracking-wider bg-slate-900/50 inline-block px-2 rounded">
+                                {game.code}
+                            </div>
+                            
+                            {/* Timer (Solo si está activa) */}
+                            {game.status === 'ACTIVE' && (
+                                <div className="mb-3">
+                                    <CountdownTimer targetDate={game.roundEndsAt} />
+                                </div>
+                            )}
+
+                            {/* Pie de Tarjeta: Ronda Única */}
+                            <div className="text-sm text-slate-400 border-t border-slate-700 pt-3 flex justify-between items-center">
+                                <span>Progreso:</span>
+                                <span className="text-white font-bold">Ronda {game.currentRound} <span className="text-slate-500 font-normal">/ {game.config.maxRounds}</span></span>
+                            </div>
                         </div>
                     ))}
                 </div>
             </div>
         ) : (
-            <GameControlPanel gameId={selectedGame} onBack={() => setSelectedGame(null)} />
+            <GameControlPanel 
+                gameId={selectedGame} 
+                onBack={() => { 
+                    setSelectedGame(null); 
+                    setRefresh(prev => prev + 1); // <--- ESTA LÍNEA FUERZA LA ACTUALIZACIÓN
+                }} 
+            />
         )}
       </main>
 
@@ -101,6 +165,11 @@ const AdminDashboardV2 = () => {
 };
 
 // --- SUB-COMPONENTE: CONTROL DE SALA ---
+// ============================================
+// UBICACIÓN: client/src/pages/AdminDashboardV2.jsx
+// BLOQUE: Reemplazar SOLAMENTE el componente GameControlPanel (al final del archivo)
+// ============================================
+
 const GameControlPanel = ({ gameId, onBack }) => {
     const [data, setData] = useState(null);
     const [processing, setProcessing] = useState(false);
@@ -108,7 +177,6 @@ const GameControlPanel = ({ gameId, onBack }) => {
     const [studentHistory, setStudentHistory] = useState([]);
     const [viewDecision, setViewDecision] = useState(null);
     const [products, setProducts] = useState([]);
-    const [showRanking, setShowRanking] = useState(false); // Estado para Modal Ranking
 
     const loadData = useCallback(() => {
         api.get(`/admin/games/${gameId}`).then(res => setData(res.data)).catch(console.error);
@@ -121,6 +189,21 @@ const GameControlPanel = ({ gameId, onBack }) => {
         const interval = setInterval(loadData, 5000);
         return () => clearInterval(interval);
     }, [loadData]);
+
+    // --- NUEVA FUNCIÓN: INICIAR PARTIDA ---
+    const handleStart = async () => {
+        if (!window.confirm("¿Iniciar la simulación? El temporizador comenzará a correr.")) return;
+        setProcessing(true);
+        try {
+            await api.post(`/admin/games/${gameId}/start`);
+            alert("✅ ¡Juego Iniciado! El tiempo está corriendo.");
+            loadData();
+        } catch (e) {
+            alert("Error al iniciar: " + (e.response?.data?.message || e.message));
+        } finally {
+            setProcessing(false);
+        }
+    };
 
     const handleProcess = async () => {
         if (!window.confirm("¿Seguro que deseas cerrar la ronda? Esto es irreversible.")) return;
@@ -156,14 +239,24 @@ const GameControlPanel = ({ gameId, onBack }) => {
                     <div className="flex items-center gap-4 text-sm text-slate-400">
                         <span className="bg-slate-800 px-2 py-1 rounded border border-slate-600 font-mono text-blue-300">CÓDIGO: {game.code}</span>
                         <span>Ronda: <strong className="text-white text-lg">{game.currentRound}</strong> / {game.config.maxRounds}</span>
+                        
+                        {/* MOSTRAR ESTADO Y TIMER SI ESTÁ ACTIVO */}
+                        <span className={`px-2 py-1 rounded font-bold ${game.status === 'ACTIVE' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>
+                            {game.status}
+                        </span>
                         {game.status === 'ACTIVE' && <CountdownTimer targetDate={game.roundEndsAt} />}
                     </div>
                 </div>
-                <div className="flex gap-3">
-                    {/* BOTÓN RANKING */}
-                    <button onClick={() => setShowRanking(true)} className="px-4 py-3 rounded font-bold text-white bg-slate-700 hover:bg-slate-600 border border-slate-500">
-                        🏆 Ver Ranking
-                    </button>
+                
+                <div className="flex gap-2">
+                    {/* BOTÓN INICIAR (Solo si está WAITING) */}
+                    {game.status === 'WAITING' && (
+                        <button onClick={handleStart} disabled={processing} className="px-6 py-3 rounded font-bold text-white shadow-lg bg-green-600 hover:bg-green-500 animate-pulse">
+                            {processing ? 'Iniciando...' : '🚀 INICIAR PARTIDA'}
+                        </button>
+                    )}
+
+                    {/* BOTÓN PROCESAR (Solo si está ACTIVE) */}
                     {game.status === 'ACTIVE' && (
                         <button onClick={handleProcess} disabled={processing} className={`px-6 py-3 rounded font-bold text-white shadow-lg ${processing ? 'bg-slate-600' : 'bg-red-600 hover:bg-red-500'}`}>
                             {processing ? 'Procesando...' : '🚨 PROCESAR RONDA'}
@@ -171,8 +264,8 @@ const GameControlPanel = ({ gameId, onBack }) => {
                     )}
                 </div>
             </div>
-            
-            {/* ... (TABLA DE ESTUDIANTES Y PANEL LATERAL IGUAL QUE ANTES) ... */}
+
+            {/* TABLA DE ESTUDIANTES (Sin cambios) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
                     <table className="w-full text-left text-sm text-slate-300">
@@ -192,9 +285,12 @@ const GameControlPanel = ({ gameId, onBack }) => {
                                     </td>
                                 </tr>
                             ))}
+                            {students.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-slate-500">Esperando alumnos... Código: {game.code}</td></tr>}
                         </tbody>
                     </table>
                 </div>
+                
+                {/* PANEL LATERAL (Sin cambios) */}
                 <div className="bg-slate-800 rounded-lg border border-slate-700 p-4 h-fit">
                     <h3 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">{inspectingCompany ? `Historial: ${inspectingCompany}` : 'Selecciona un alumno'}</h3>
                     {!inspectingCompany ? <p className="text-slate-500 text-sm">Haz clic en "🔍 Historial" en la tabla.</p> : (
@@ -209,10 +305,7 @@ const GameControlPanel = ({ gameId, onBack }) => {
                     )}
                 </div>
             </div>
-
-            {/* MODALES */}
             {viewDecision && <DecisionDetailModal decision={viewDecision} products={products} onClose={() => setViewDecision(null)} />}
-            {showRanking && <RankingModal gameId={gameId} onClose={() => setShowRanking(false)} />}
         </div>
     );
 };

@@ -123,20 +123,56 @@ const DashboardPageV2 = () => {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0F172A', color: '#F8FAFC', fontFamily: "'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
       
-      {/* HEADER */}
+      {/* HEADER MEJORADO: Nombre de Sala y Datos de Usuario */}
       <header style={{ backgroundColor: '#1E293B', borderBottom: '1px solid #334155', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        
+        {/* IZQUIERDA: Identidad de la Sala */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <img src={logo} alt="Logo" style={{ height: '45px' }} />
           <div>
-            <h1 style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#F8FAFC', lineHeight: '1.2' }}>Simulador de Estrategias de Negocios v2.0</h1>
-            <div style={{ fontSize: '0.75rem', color: '#3B82F6', fontWeight: '600' }}>ElectroNova Inc.</div>
+            {/* Mostramos el Nombre del Juego (Sala) en lugar del título genérico */}
+            <h1 style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#F8FAFC', lineHeight: '1.2' }}>
+                {gameInfo?.name || "Cargando Sala..."}
+            </h1>
+            <div style={{ fontSize: '0.75rem', color: '#3B82F6', fontWeight: '600' }}>
+                Código: {gameInfo?.code}
+            </div>
           </div>
         </div>
+
+        {/* DERECHA: Info Usuario, Timer y Salir */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+
+            {/* --- INICIO CAMBIO QUIRÚRGICO: Botones de Navegación Restaurados --- */}
+            <div style={{ display: 'flex', gap: '1rem' }}>
+                {/* Botón para ir a la Wiki del Estudiante */}
+                <button 
+                    onClick={() => navigate('/dashboard/wiki')} 
+                    style={{ color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600' }}
+                    title="Ver Manual de Juego"
+                >
+                    📘 Ayuda
+                </button>
+
+                {/* Botón para volver al selector de salas */}
+                <button 
+                    onClick={() => navigate('/rooms')} 
+                    style={{ color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}
+                    title="Cambiar a otra simulación"
+                >
+                    Cambiar Sala
+                </button>
+            </div>
+            {/* --- FIN CAMBIO QUIRÚRGICO --- */}
+            
+            {/* DATOS DEL ESTUDIANTE (Nombre + Email + Empresa) */}
             <div style={{ textAlign: 'right', borderRight: '1px solid #334155', paddingRight: '1.5rem' }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#F8FAFC' }}>{user?.name}</div>
-                <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>{company.name}</div>
+                <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{user?.email}</div>
+                <div style={{ fontSize: '0.8rem', color: '#10B981', marginTop: '0.2rem' }}>{company.name}</div>
             </div>
+            
+            {/* TIMER Y RONDA */}
             <div style={{ textAlign: 'right' }}>
                 <div style={{ marginBottom: '0.25rem' }}>
                     <CountdownTimer targetDate={gameInfo?.roundEndsAt} />
@@ -144,6 +180,7 @@ const DashboardPageV2 = () => {
                 <div style={{ fontSize: '0.75rem', color: '#64748B' }}>RONDA ACTUAL</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#F8FAFC' }}>#{company.currentRound}</div>
             </div>
+
             <button onClick={handleLogout} style={{ padding: '0.5rem 1rem', border: '1px solid #EF4444', color: '#EF4444', borderRadius: '0.375rem', background: 'rgba(239, 68, 68, 0.1)', cursor: 'pointer', fontWeight: '600', fontSize: '0.875rem' }}>Salir</button>
         </div>
       </header>
@@ -237,33 +274,48 @@ const DashboardPageV2 = () => {
             </div>
         </div>
 
-        {/* --- SECCIÓN INVENTARIOS --- */}
+        {/* --- SECCIÓN INVENTARIOS (CORREGIDA) --- */}
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: 'white', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
             📦 Estado de Inventarios
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-            {/* Tabla MP */}
+            
+            {/* TABLA 1: MATERIA PRIMA (Con Tránsito Desglosado) */}
             <div style={{ backgroundColor: '#1E293B', borderRadius: '0.75rem', border: '1px solid #334155', padding: '1rem' }}>
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#94A3B8', marginBottom: '1rem' }}>MATERIA PRIMA (ALMACÉN)</h3>
                 <table style={{ width: '100%', fontSize: '0.85rem', color: '#CBD5E1' }}>
                     <thead>
                         <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left' }}>
                             <th style={{ padding: '0.5rem' }}>Insumo</th>
-                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Actual</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Disponible</th> {/* CAMBIO DE NOMBRE */}
+                            <th style={{ padding: '0.5rem', textAlign: 'right', color: '#F59E0B' }}>En Tránsito</th> {/* NUEVA COLUMNA */}
                             <th style={{ padding: '0.5rem', textAlign: 'right' }}>Consumo Plan.</th>
                             <th style={{ padding: '0.5rem', textAlign: 'right' }}>Proyectado</th>
                         </tr>
                     </thead>
                     <tbody>
                         {materials.map(mat => {
+                            // 1. Stock Físico en Almacén
                             const current = company.rawMaterials.find(rm => rm.materialType === mat.name)?.units || 0;
+                            
+                            // 2. Stock en Tránsito (Sumar lotes llegando)
+                            const transit = company.inTransit?.materials
+                                ?.filter(m => m.materialType === mat.name)
+                                .reduce((sum, item) => sum + item.units, 0) || 0;
+
+                            // 3. Proyección (Disponible - Consumo + Compras Nuevas)
                             const consumption = simulation?.materialConsumption[mat.name] || 0;
                             const buying = currentDecision.procurement.find(p => p.materialType === mat.name)?.units || 0;
                             const projected = current - consumption + buying;
+
                             return (
                                 <tr key={mat.name} style={{ borderBottom: '1px solid #334155' }}>
                                     <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>{mat.name}</td>
                                     <td style={{ padding: '0.5rem', textAlign: 'right' }}>{current.toLocaleString()}</td>
+                                    {/* Columna Tránsito */}
+                                    <td style={{ padding: '0.5rem', textAlign: 'right', color: '#F59E0B' }}>
+                                        {transit > 0 ? `+${transit.toLocaleString()}` : '-'}
+                                    </td>
                                     <td style={{ padding: '0.5rem', textAlign: 'right', color: '#EF4444' }}>-{consumption.toLocaleString()}</td>
                                     <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: projected < 0 ? '#EF4444' : '#10B981' }}>
                                         {Math.max(0, projected).toLocaleString()}
@@ -275,7 +327,7 @@ const DashboardPageV2 = () => {
                 </table>
             </div>
 
-            {/* Tabla PT */}
+            {/* TABLA 2: PRODUCTO TERMINADO (Iterando sobre PRODUCTS correctamente) */}
             <div style={{ backgroundColor: '#1E293B', borderRadius: '0.75rem', border: '1px solid #334155', padding: '1rem' }}>
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#94A3B8', marginBottom: '1rem' }}>INVENTARIO EN PLAZAS (PT)</h3>
                 <table style={{ width: '100%', fontSize: '0.85rem', color: '#CBD5E1' }}>
@@ -283,25 +335,48 @@ const DashboardPageV2 = () => {
                         <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left' }}>
                             <th style={{ padding: '0.5rem' }}>Producto</th>
                             <th style={{ padding: '0.5rem' }}>Plaza</th>
-                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Stock Actual</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Disponible</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right', color: '#F59E0B' }}>En Tránsito</th>
                             <th style={{ padding: '0.5rem', textAlign: 'right' }}>Costo Unit.</th>
                         </tr>
                     </thead>
                     <tbody>
+                        {/* Iteramos sobre PRODUCTS (Alta, Media, Básica) */}
                         {products.map(prod => {
-                            const stocks = company.inventory.filter(inv => inv.productLine === prod._id && inv.units > 0);
-                            if (stocks.length === 0) return null;
-                            return stocks.map((stock, idx) => (
-                                <tr key={`${prod._id}-${idx}`} style={{ borderBottom: '1px solid #334155' }}>
-                                    <td style={{ padding: '0.5rem' }}>{prod.name}</td>
-                                    <td style={{ padding: '0.5rem', color: '#3B82F6' }}>{stock.market}</td>
-                                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>{stock.units.toLocaleString()} u</td>
-                                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>${parseFloat(stock.unitCost).toFixed(2)}</td>
-                                </tr>
-                            ));
+                            // Definimos las plazas para mostrar estructura fija
+                            const markets = ['Novaterra', 'Solís', 'Veridia', 'Aurínea'];
+                            
+                            return markets.map(market => {
+                                // Buscar stock disponible en esta plaza y producto
+                                const stock = company.inventory.find(inv => inv.productLine === prod._id && inv.market === market);
+                                const unitsAvailable = stock ? stock.units : 0;
+                                const unitCost = stock ? stock.unitCost : 0;
+
+                                // Buscar stock en tránsito hacia esta plaza
+                                const transit = company.inTransit?.products
+                                    ?.filter(p => p.productLine === prod._id && p.destination === market)
+                                    .reduce((sum, item) => sum + item.units, 0) || 0;
+
+                                // Solo renderizar si hay actividad (stock o tránsito)
+                                if (unitsAvailable === 0 && transit === 0) return null;
+
+                                return (
+                                    <tr key={`${prod._id}-${market}`} style={{ borderBottom: '1px solid #334155' }}>
+                                        <td style={{ padding: '0.5rem' }}>{prod.name}</td>
+                                        <td style={{ padding: '0.5rem', color: '#3B82F6' }}>{market}</td>
+                                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold' }}>{unitsAvailable.toLocaleString()}</td>
+                                        <td style={{ padding: '0.5rem', textAlign: 'right', color: '#F59E0B' }}>
+                                            {transit > 0 ? `+${transit.toLocaleString()}` : '-'}
+                                        </td>
+                                        <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                                            {unitCost > 0 ? `$${parseFloat(unitCost).toFixed(2)}` : '-'}
+                                        </td>
+                                    </tr>
+                                );
+                            });
                         })}
-                        {(!company.inventory || company.inventory.length === 0) && (
-                            <tr><td colSpan="4" style={{ padding: '1rem', textAlign: 'center', color: '#64748B' }}>Sin inventario en plazas.</td></tr>
+                        {(!company.inventory?.length && !company.inTransit?.products?.length) && (
+                            <tr><td colSpan="5" style={{ padding: '1rem', textAlign: 'center', color: '#64748B' }}>Sin inventario en plazas.</td></tr>
                         )}
                     </tbody>
                 </table>

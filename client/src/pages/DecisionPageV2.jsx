@@ -26,6 +26,7 @@ const DecisionPageV2 = () => {
   const [products, setProducts] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [company, setCompany] = useState(null);
+  const [game, setGame] = useState(null);
   
   const [decision, setDecision] = useState({
     production: [],
@@ -50,6 +51,7 @@ const DecisionPageV2 = () => {
         setProducts(prodRes.data.data);
         setMaterials(matRes.data.data);
         setCompany(profileRes.data.company);
+        setGame(profileRes.data.game);
 
         try {
             const currentDecRes = await api.get('/decisions/current');
@@ -101,9 +103,16 @@ const DecisionPageV2 = () => {
       case 'logistics':
         return <LogisticsTab products={products} currentData={decision.logistics} onUpdate={(data) => updateDecisionSection('logistics', data)} simulation={simulation} />;
       case 'commercial':
-        return <CommercialTab products={products} currentData={decision.commercial} onUpdate={(data) => updateDecisionSection('commercial', data)} simulation={simulation} />;
+        return <CommercialTab 
+            products={products}
+            currentData={decision.commercial}
+            onUpdate={(data) => updateDecisionSection('commercial', data)}
+            simulation={simulation}
+            company={company} // <--- NUEVA PROP AGREGADA
+        />;
       case 'tools':
-        return <ToolsTab company={company} />;
+        // Pasamos el objeto 'game' al componente hijo
+        return <ToolsTab company={company} game={game} />;
       default: return null;
     }
   };

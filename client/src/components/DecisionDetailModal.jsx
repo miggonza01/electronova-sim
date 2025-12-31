@@ -1,6 +1,6 @@
 // ============================================
 // FILE: client/src/components/DecisionDetailModal.jsx
-// PURPOSE: Modal de solo lectura (Orden: Compras -> Producción)
+// PURPOSE: Modal de Historial Detallado (Con Proveedores y Transporte)
 // ============================================
 
 import React from 'react';
@@ -51,7 +51,7 @@ const DecisionDetailModal = ({ decision, onClose, products }) => {
         {/* BODY */}
         <div style={{ padding: '1.5rem', overflowY: 'auto' }}>
             
-            {/* 1. COMPRAS (AHORA PRIMERO) */}
+            {/* 1. COMPRAS (Con detalle de Proveedor) */}
             <h3 style={{...sectionTitleStyle, marginTop: 0}}>🛒 Compras MP</h3>
             {decision.procurement.length > 0 ? (
                 <table style={tableStyle}>
@@ -63,10 +63,9 @@ const DecisionDetailModal = ({ decision, onClose, products }) => {
                                 <td style={tdStyle}>
                                     <span style={{ 
                                         color: item.supplierType === 'local' ? '#10B981' : '#F59E0B',
-                                        backgroundColor: item.supplierType === 'local' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                                        padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem'
+                                        fontWeight: 'bold', fontSize: '0.75rem'
                                     }}>
-                                        {item.supplierType.toUpperCase()}
+                                        {item.supplierType === 'local' ? 'LOCAL (1 Ronda)' : 'IMPORTADO (2 Rondas)'}
                                     </span>
                                 </td>
                                 <td style={tdStyle}>{item.units.toLocaleString()} u</td>
@@ -76,7 +75,7 @@ const DecisionDetailModal = ({ decision, onClose, products }) => {
                 </table>
             ) : <p style={{color: '#64748B'}}>Sin compras.</p>}
 
-            {/* 2. PRODUCCIÓN (AHORA SEGUNDO) */}
+            {/* 2. PRODUCCIÓN */}
             <h3 style={sectionTitleStyle}>🏭 Producción</h3>
             {decision.production.length > 0 ? (
                 <table style={tableStyle}>
@@ -92,7 +91,7 @@ const DecisionDetailModal = ({ decision, onClose, products }) => {
                 </table>
             ) : <p style={{color: '#64748B'}}>Sin producción planificada.</p>}
 
-            {/* 3. LOGÍSTICA */}
+            {/* 3. LOGÍSTICA (Con detalle de Transporte) */}
             <h3 style={sectionTitleStyle}>🚚 Logística</h3>
             {decision.logistics.length > 0 ? (
                 <table style={tableStyle}>
@@ -102,7 +101,13 @@ const DecisionDetailModal = ({ decision, onClose, products }) => {
                             <tr key={idx}>
                                 <td style={tdStyle}>{getProductName(item.productLine)}</td>
                                 <td style={tdStyle}>{item.destination}</td>
-                                <td style={tdStyle}>{item.method === 'aereo' ? '✈️ Aéreo' : '🚛 Terrestre'}</td>
+                                <td style={tdStyle}>
+                                    {item.method === 'aereo' ? (
+                                        <span style={{ color: '#3B82F6' }}>✈️ Aéreo (Rápido)</span>
+                                    ) : (
+                                        <span style={{ color: '#F59E0B' }}>🚛 Terrestre (Normal)</span>
+                                    )}
+                                </td>
                                 <td style={tdStyle}>{item.units.toLocaleString()} u</td>
                             </tr>
                         ))}
