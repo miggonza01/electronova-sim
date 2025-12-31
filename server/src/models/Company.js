@@ -79,8 +79,8 @@ const CompanySchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
-        unique: true
+        required: true
+        // Se eliminó 'unique: true' para permitir múltiples empresas por usuario
     },
     name: { type: String, required: true, default: 'ElectroNova Inc.' },
     
@@ -132,5 +132,10 @@ const CompanySchema = new mongoose.Schema({
         }
     }
 });
+
+// ÍNDICE COMPUESTO:
+// Garantiza que un usuario solo tenga UNA empresa DENTRO DE LA MISMA SALA,
+// pero permite que tenga otras empresas en otras salas.
+CompanySchema.index({ user: 1, gameId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Company', CompanySchema);

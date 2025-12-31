@@ -15,7 +15,8 @@ const {
     updateGame,
     deleteGame,
     getGameResults,
-    getGameRanking
+    getGameRanking,
+    removePlayer
 } = require('../controllers/adminController');
 
 const { protect } = require('../middlewares/authMiddleware');
@@ -39,5 +40,7 @@ router.post('/games/:id/process', processRound);
 
 // Inspección
 router.get('/companies/:id/history', getCompanyHistory); 
+
+router.delete('/games/:gameId/players/:companyId', removePlayer);
 
 module.exports = router;

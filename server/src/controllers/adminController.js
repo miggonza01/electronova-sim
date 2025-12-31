@@ -65,7 +65,14 @@ exports.createGame = async (req, res) => {
 // @route   GET /api/admin/games
 exports.getMyGames = async (req, res) => {
     try {
-        const games = await Game.find({ adminId: req.user.id }).sort({ createdAt: -1 });
+        let query = { adminId: req.user.id };
+        
+        // Si es superadmin, ve todo. Si no, solo lo suyo.
+        if (req.user.role === 'superadmin') {
+            query = {}; // Sin filtro
+        }
+
+        const games = await Game.find(query).sort({ createdAt: -1 });
         res.json({ success: true, count: games.length, data: games });
     } catch (error) {
         res.status(500).json({ message: 'Error obteniendo partidas' });
@@ -301,5 +308,38 @@ exports.getGameResults = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error calculando resultados' });
+    }
+};
+
+// @desc    Expulsar alumno de una sala
+// @route   DELETE /api/admin/games/:gameId/players/:companyId
+exports.removePlayer = async (req, res) => {
+    try {
+        const { gameId, companyId } = req.params;
+
+        // 1. Validar permisos (Si no es superadmin, debe ser dueño de la sala)
+        const game = await Game.findById(gameId);
+        if (!game) return res.status(404).json({ message: 'Sala no encontrada' });
+        
+        if (req.user.role !== 'superadmin' && game.adminId.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'No tienes permiso para gestionar esta sala' });
+        }
+
+        // 2. Eliminar Datos del Alumno
+        await Decision.deleteMany({ companyId });
+        await FinancialStatement.deleteMany({ companyId });
+        
+        // 3. Desvincular Usuario (Buscar usuario dueño de la empresa)
+        const company = await Company.findById(companyId);
+        if (company) {
+            await User.findByIdAndUpdate(company.user, { $set: { currentGame: null } });
+            await Company.findByIdAndDelete(companyId);
+        }
+
+        res.json({ success: true, message: 'Jugador eliminado correctamente' });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error eliminando jugador' });
     }
 };
