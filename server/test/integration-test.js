@@ -90,14 +90,18 @@ class IntegrationTestSuite {
 
         // 2. Crear producto
         const testProduct = new Product({
-            name: 'ElectroNova Basic',
-            line: 'Basic',
-            baseCost: 50,
-            rawMaterialConsumption: {
-                Alfa: 2,
-                Beta: 1,
-                Omega: 0.5
-            }
+            name: 'Básica',
+            baseProductionCost: 50,
+            rawMaterialRequirements: [{
+                materialType: 'Alfa',
+                quantity: 2
+            }, {
+                materialType: 'Beta',
+                quantity: 1
+            }, {
+                materialType: 'Omega',
+                quantity: 0.5
+            }]
         });
         this.testData.product = await testProduct.save();
 

@@ -9,7 +9,7 @@
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
-    name: {
+name: {
         type: String,
         enum: ['Alta', 'Media', 'Básica'], // Restricción estricta según PDF
         required: true,
