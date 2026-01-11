@@ -1,31 +1,68 @@
 // ============================================
 // FILE: server/src/services/marketEngineV2.js
-// VERSION: v2.3.0-multiplayer
-// PURPOSE: Motor de Ventas (Contexto Sala)
+// VERSION: v2.4.0-random-events
+// PURPOSE: Motor de Ventas con Eventos Aleatorios Integrados
+// CHANGE LOG: Added random events integration and capacity service coupling
+// SPEC REF: "3.1 - Motor de Mercado" y "4.2 - Eventos Aleatorios"
+// RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
 // ============================================
 
 const Market = require('../models/Market');
 const Product = require('../models/Product');
 const inventoryService = require('./inventoryService');
+const capacityService = require('./capacityService');
+const randomEventService = require('./randomEventService');
 
 /**
  * Calcula ventas y RETORNA resultados financieros por empresa.
- * @param {Object} gameConfig - Configuración específica de la sala (para modificadores de demanda)
+ * @param {Object} market - Mercado objetivo
+ * @param {Object} product - Producto a vender
+ * @param {Array} activeCompanies - Empresas participantes
+ * @param {Array} allDecisions - Decisiones de todas las empresas
+ * @param {Object} gameConfig - Configuración específica de la sala
+ * @param {Object} game - Objeto Game completo (para eventos aleatorios)
  */
-exports.calculateSales = async (market, product, activeCompanies, allDecisions, gameConfig) => {
+exports.calculateSales = async (market, product, activeCompanies, allDecisions, gameConfig, game = null) => {
     
     // 1. Obtener Modificador de Demanda desde la Config del Juego
     const demandModifier = (gameConfig.modifiers && gameConfig.modifiers.demand) 
         ? gameConfig.modifiers.demand 
         : 1.0;
 
-    const randomFactor = 1.0; 
+    // 2. Verificar eventos aleatorios activos que afecten la demanda
+    let eventModifier = 1.0;
+    let currentEvent = null;
     
-    // FÓRMULA DEMANDA: Base * Random * Evento
-    const totalDemand = market.demandPotential * randomFactor * demandModifier;
+    if (game && game.eventHistory && game.eventHistory.length > 0) {
+        // Buscar eventos activos para la ronda actual
+        const currentRound = game.currentRound;
+        const activeEvents = game.eventHistory.filter(event => {
+            // Eventos de duración múltiple podrían estar activos
+            return event.round === currentRound || 
+                   (event.round + 1 >= currentRound && currentRound - event.round <= 2); // Duración máxima de 2 rondas
+        });
+        
+        if (activeEvents.length > 0) {
+            currentEvent = activeEvents[activeEvents.length - 1]; // Evento más reciente
+            if (currentEvent.modifiers && currentEvent.modifiers.demand) {
+                eventModifier = currentEvent.modifiers.demand;
+            }
+        }
+    }
 
-    if (demandModifier !== 1.0) {
-        // console.log(`   ⚠️ EVENTO MERCADO: Demanda ajustada x${demandModifier}`);
+    // 3. Calcular demanda total con todos los modificadores
+    const totalDemand = market.demandPotential * demandModifier * eventModifier;
+
+    // 4. Logging de modificadores
+    if (demandModifier !== 1.0 || eventModifier !== 1.0) {
+        console.log(`   ⚠️ MODIFICADORES DEMANDA:`);
+        if (demandModifier !== 1.0) {
+            console.log(`   - Config: x${demandModifier}`);
+        }
+        if (eventModifier !== 1.0) {
+            console.log(`   - Evento: x${eventModifier} (${currentEvent ? currentEvent.eventName : 'Desconocido'})`);
+        }
+        console.log(`   - Demanda Final: ${market.demandPotential} → ${totalDemand.toFixed(0)}`);
     }
 
     const competitors = [];
