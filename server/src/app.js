@@ -1,7 +1,10 @@
 // ============================================
 // FILE: server/src/app.js
-// VERSION: v2.3.0-stable
-// PURPOSE: Orquestador principal de Rutas y Configuración
+// VERSION: v2.4.0-random-events
+// PURPOSE: Orquestador principal con eventos aleatorios integrados
+// CHANGE LOG: Added random events service initialization
+// SPEC REF: "4.2 - Eventos Aleatorios"
+// RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
 // ============================================
 
 const express = require('express');
@@ -10,6 +13,9 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
+
+// Importar servicios de eventos aleatorios
+const randomEventService = require('./services/randomEventService');
 
 // --- 1. IMPORTACIÓN DE RUTAS ---
 const authRoutes = require('./routes/authRoutes');
@@ -46,7 +52,17 @@ if (!dbUri) {
 }
 
 mongoose.connect(dbUri)
-    .then(() => console.log(`✅ MONGODB CONECTADO: ${dbUri.split('/').pop().split('?')[0]}`))
+    .then(async () => {
+        console.log(`✅ MONGODB CONECTADO: ${dbUri.split('/').pop().split('?')[0]}`);
+        
+        // Inicializar eventos aleatorios después de conectar
+        try {
+            await randomEventService.initializeEvents();
+            console.log('🎲 Eventos aleatorios inicializados');
+        } catch (error) {
+            console.error('❌ Error inicializando eventos aleatorios:', error);
+        }
+    })
     .catch(err => console.error('❌ ERROR DB:', err));
 
 // --- 5. MONTAJE DE RUTAS (ENDPOINTS) ---
