@@ -89,10 +89,11 @@ class IntegrationTestSuite {
         this.testData.market = await testMarket.save();
 
         // 2. Crear producto
-        const testProduct = new Product({
+const testProduct = new Product({
             name: 'Básica',
-            baseProductionCost: 50,
-            rawMaterialRequirements: [{
+            line: 'Básica',
+            baseCost: 50,
+            rawMaterialConsumption: [{
                 materialType: 'Alfa',
                 quantity: 2
             }, {
