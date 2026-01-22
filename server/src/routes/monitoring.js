@@ -1,9 +1,9 @@
-# ============================================
-# FILE: server/src/routes/monitoring.js
-# VERSION: v2.4.0-production
-# PURPOSE: Monitoring and health check routes for ElectroNova
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
-# ============================================
+// ============================================
+// FILE: server/src/routes/monitoring.js
+// VERSION: v2.4.0-production
+// PURPOSE: Monitoring and health check routes for ElectroNova
+// RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+// ============================================
 
 const express = require('express');
 const router = express.Router();
