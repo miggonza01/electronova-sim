@@ -1,9 +1,9 @@
-# ============================================
-# FILE: server/src/middleware/logging.js
-# VERSION: v2.4.0-production
-# PURPOSE: Logging middleware for ElectroNova production
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
-# ============================================
+// ============================================
+// FILE: server/src/middleware/logging.js
+// VERSION: v2.4.0-production
+// PURPOSE: Logging middleware for ElectroNova production
+// RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+// ============================================
 
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');

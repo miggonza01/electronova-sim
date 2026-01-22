@@ -1,9 +1,9 @@
-# ============================================
-# FILE: server/src/middleware/security.js
-# VERSION: v2.4.0-production
-# PURPOSE: Security middleware for ElectroNova production
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
-# ============================================
+// ============================================
+// FILE: server/src/middleware/security.js
+// VERSION: v2.4.0-production
+// PURPOSE: Security middleware for ElectroNova production
+// RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+// ============================================
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');

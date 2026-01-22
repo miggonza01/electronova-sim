@@ -1,9 +1,9 @@
-# ============================================
-# FILE: server/src/middleware/monitoring.js
-# VERSION: v2.4.0-production
-# PURPOSE: Monitoring middleware for ElectroNova production
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
-# ============================================
+// ============================================
+// FILE: server/src/middleware/monitoring.js
+// VERSION: v2.4.0-production
+// PURPOSE: Monitoring middleware for ElectroNova production
+// RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+// ============================================
 
 const promClient = require('prom-client');
 const { performanceLogger } = require('./logging');
