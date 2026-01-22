@@ -49,3 +49,10 @@ const AppV2 = () => {
 };
 
 export default AppV2;
+
+// ============================================
+// Copyright Notice
+// ============================================
+// © Maribel Pinheiro & Miguel González | Dic-2025
+// Simulador de Estrategias de Negocios - Versión 2.4.0
+// ============================================
