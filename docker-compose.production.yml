@@ -1,0 +1,137 @@
+# ============================================
+# FILE: docker-compose.production.yml
+# VERSION: v2.4.0-production
+# PURPOSE: Production Docker Compose configuration for ElectroNova
+# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+# ============================================
+
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: electronova-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: electronova-production
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb-init:/docker-entrypoint-initdb.d
+    ports:
+      - "27017:27017"
+    networks:
+      - electronova-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: electronova-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - electronova-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ElectroNova Server
+  electronova-server:
+    build:
+      context: .
+      dockerfile: ../Dockerfile.production
+    container_name: electronova-server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://admin:${MONGO_ROOT_PASSWORD:-changeme}@mongodb:27017/electronova-production?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379
+      - JWT_SECRET=${JWT_SECRET:-production-jwt-secret}
+      - JWT_SECRET_V2=${JWT_SECRET_V2:-production-jwt-secret-v2}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://electronova.yourdomain.com}
+      - SESSION_SECRET=${SESSION_SECRET:-production-session-secret}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FILE_PATH=${LOG_FILE_PATH:-./logs/app.log}
+      - RANDOM_EVENTS_ENABLED=${RANDOM_EVENTS_ENABLED:-true}
+      - MAX_RANDOM_EVENTS_PER_ROUND=${MAX_RANDOM_EVENTS_PER_ROUND:-1}
+      - DEFAULT_RANDOM_EVENT_PROBABILITY=${DEFAULT_RANDOM_EVENT_PROBABILITY:-0.3}
+      - DEFAULT_CAPACITY_LIMIT=${DEFAULT_CAPACITY_LIMIT:-50000}
+      - MIN_CAPACITY_LIMIT=${MIN_CAPACITY_LIMIT:-1000}
+      - MAX_COMPANIES_PER_GAME=${MAX_COMPANIES_PER_GAME:-10}
+      - MONITORING_ENABLED=${MONITORING_ENABLED:-true}
+      - METRICS_PORT=${METRICS_PORT:-9090}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-10485760}
+      - UPLOAD_PATH=${UPLOAD_PATH:-./uploads}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./server/logs:/app/logs
+      - ./server/uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - electronova-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: electronova-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./client/dist:/usr/share/nginx/html:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - electronova-server:
+        condition: service_healthy
+    networks:
+      - electronova-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  electronova-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

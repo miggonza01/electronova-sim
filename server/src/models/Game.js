@@ -41,8 +41,16 @@ const GameSchema = new mongoose.Schema({
         marketResearchRound: { type: Number, default: 1 }, 
         marketResearchCost: { type: Number, default: 15000 },
 
-        // Parámetros económicos
+// Parámetros económicos
         obsolescencePenaltyRate: { type: Number, default: 10 },
+        
+        // NUEVO: Configuración de Eventos Aleatorios
+        randomEvents: {
+            enabled: { type: Boolean, default: true },
+            startRound: { type: Number, default: 2 }, // Ronda a partir de la cual ocurren eventos
+            probability: { type: Number, default: 0.15 }, // 15% probabilidad por ronda
+            maxOnePerRound: { type: Boolean, default: true } // Solo un evento por ronda
+        },
         
         modifiers: {
             logisticsCost: { type: Number, default: 1.0 },
@@ -50,6 +58,22 @@ const GameSchema = new mongoose.Schema({
             demand: { type: Number, default: 1.0 }
         }
     },
+
+// NUEVO: Histórico de Eventos Aleatorios por Ronda
+    eventHistory: [{
+        round: { type: Number, required: true },
+        eventId: { type: String, required: true },
+        eventName: { type: String, required: true },
+        eventDescription: { type: String, required: true },
+        eventImpact: { type: String, required: true }, // Descripción del impacto para usuarios
+        triggeredAt: { type: Date, default: Date.now },
+        modifiers: { // Modificadores aplicados por este evento
+            demand: { type: Number },
+            logisticsCost: { type: Number },
+            rawMaterialCost: { type: Number },
+            productionCapacity: { type: Number }
+        }
+    }],
 
     // Fechas
     createdAt: { type: Date, default: Date.now },

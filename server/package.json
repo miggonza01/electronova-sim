@@ -1,17 +1,39 @@
 {
-  "name": "server",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "electronova-server",
+  "version": "2.4.0",
+  "description": "ElectroNova Business Simulation Platform - Server",
+  "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "dev:v2": "dotenv -e .env.development.v2 -- nodemon src/app.js",
-    "seed:v2": "dotenv -e .env.development.v2 -- node src/seedV2.js"
+    "seed:v2": "dotenv -e .env.development.v2 -- node src/seedV2.js",
+    "test": "node test/validation-suite.js && node test/integration-test.js",
+    "test:unit": "node test/capacityService-test.js && node test/marketEngineV2-test.js && node test/randomEventService-test.js",
+    "test:integration": "node test/integration-test.js",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "monitor": "pm2 monit",
+    "logs": "pm2 logs",
+    "build:prod": "npm ci --only=production",
+    "docker:build": "docker build -f ../Dockerfile.production -t electronova-server:latest .",
+    "docker:run": "docker run -p 5000:5000 --env-file .env.production electronova-server:latest"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "business-simulation",
+    "education",
+    "multiplayer",
+    "real-time",
+    "nodejs",
+    "express",
+    "mongodb",
+    "socket.io"
+  ],
+  "author": {
+    "name": "Maribel Pinheiro & Miguel González",
+    "email": "contact@electronova.com"
+  },
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -24,10 +46,42 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.0.2",
     "socket.io": "^4.8.2",
-    "socket.io-client": "^4.8.2"
+    "socket.io-client": "^4.8.2",
+    "express-rate-limit": "^7.1.5",
+    "xss-clean": "^0.1.4",
+    "hpp": "^0.2.3",
+    "compression": "^1.7.4",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "prom-client": "^15.0.0",
+    "nodemailer": "^6.9.7",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "mathjs": "^12.2.0"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
-    "nodemon": "^3.1.11"
-  }
+    "nodemon": "^3.1.11",
+    "eslint": "^8.55.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/electronova/electronova-sim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/electronova/electronova-sim/issues"
+  },
+  "homepage": "https://github.com/electronova/electronova-sim#readme"
 }
