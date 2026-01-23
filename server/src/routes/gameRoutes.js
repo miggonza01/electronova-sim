@@ -10,8 +10,7 @@ const router = express.Router();
 const Game = require('../models/Game');
 const Company = require('../models/Company');
 const User = require('../models/User');
-//const authMiddleware = require('../middlewares/authMiddleware');
-const { authMiddleware } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
 
 // Get game info
 router.get('/:gameCode', async (req, res) => {
