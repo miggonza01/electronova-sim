@@ -1,5 +1,5 @@
 // ============================================
-// FILE: server/src/middlewares/authMiddleware.js
+// FILE: server/src/middleware/authMiddleware.js
 // PURPOSE: Proteger rutas verificando Token JWT
 // ============================================
 
