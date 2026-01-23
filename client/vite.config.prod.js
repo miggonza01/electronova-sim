@@ -1,7 +1,7 @@
 # ============================================
 # FILE: client/vite.config.prod.js
 # VERSION: v2.4.0-production
-# PURPOSE: Production Vite configuration for ElectroNova frontend
+# PURPOSE: Production Vite configuration for ElectroNova v2.4.0 frontend
 # RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
 # ============================================
 
@@ -23,13 +23,16 @@ export default defineConfig({
           // Split vendor libraries
           vendor: ['react', 'react-dom'],
           
-          // Split major features
-          dashboard: ['./src/pages/DashboardPage.jsx'],
-          game: ['./src/pages/GamePage.jsx'],
-          auth: ['./src/pages/AuthPage.jsx'],
+           // Split major features
+          dashboard: ['./src/pages/DashboardPageV2.jsx'],
+          game: ['./src/pages/DecisionPageV2.jsx'],
+          auth: ['./src/pages/LoginPageV2.jsx'],
+          admin: ['./src/pages/AdminDashboardV2.jsx'],
+          api: ['./src/services/api.v2.js'],
+          socket: ['socket.io-client'],
           
           // Keep remaining code together
-          main: ['./src/main.jsx']
+          main: ['./src/AppV2.jsx']
         }
       }
     },

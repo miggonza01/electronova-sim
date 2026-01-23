@@ -1,5 +1,61 @@
+# ============================================
+# FILE: client/vercel.json
+# VERSION: v2.4.0-production
+# PURPOSE: Vercel deployment configuration for ElectroNova
+# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+# ============================================
+
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1",
+      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    },
+    {
+      "src": "/socket.io/(.*)",
+      "dest": "/socket.io/$1",
+      "methods": ["GET", "POST", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://electronova-backend-mvp.onrender.com/api",
+    "VITE_SOCKET_URL": "https://electronova-backend-mvp.onrender.com",
+    "NODE_ENV": "production"
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "api/health.js": {
+      "maxDuration": 10
+    }
+  },
+  "regions": ["iad1"]
 }
