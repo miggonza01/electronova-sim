@@ -1,15 +1,17 @@
 {
-  "name": "client",
-  "private": true,
-  "version": "0.0.0",
+  "name": "electronova-sim",
+  "version": "2.4.0",
+  "description": "ElectroNova Business Simulation Platform - Frontend v2.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "dev:v2": "vite --mode v2 --port 5174"
-  },
+    "dev:v2": "vite --mode v2 --port 5174",
+    "build:prod": "vite build --mode production",
+    "deploy": "vercel --prod",
+    },
   "dependencies": {
     "axios": "^1.13.2",
     "lucide-react": "^0.562.0",

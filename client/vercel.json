@@ -1,8 +1,8 @@
 # ============================================
 # FILE: client/vercel.json
 # VERSION: v2.4.0-production
-# PURPOSE: Vercel deployment configuration for ElectroNova
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
+# PURPOSE: Vercel deployment configuration for ElectroNova v2.4.0
+# RIGHTS: © Maribel Pinheiro & Miguel González | Enero-2026
 # ============================================
 
 {
@@ -12,7 +12,7 @@
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "outputDirectory": "dist"
       }
     }
   ],
@@ -25,11 +25,7 @@
     {
       "src": "/socket.io/(.*)",
       "dest": "/socket.io/$1",
-      "methods": ["GET", "POST", "OPTIONS"],
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
-      }
+      "methods": ["GET", "POST", "OPTIONS"]
     },
     {
       "src": "/(.*)",
@@ -52,10 +48,5 @@
       ]
     }
   ],
-  "functions": {
-    "api/health.js": {
-      "maxDuration": 10
-    }
-  },
   "regions": ["iad1"]
 }
