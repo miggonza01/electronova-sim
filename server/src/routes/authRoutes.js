@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { register, login, getMe, getMyRooms, switchRoom, joinGame } = require('../controllers/authController');
-const { protect } = require('../middlewares/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 // Rutas Públicas
 router.post('/register', register);
