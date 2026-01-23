@@ -37,3 +37,8 @@ exports.protect = async (req, res, next) => {
         res.status(401).json({ message: 'No autorizado, no hay token' });
     }
 };
+
+module.exports = {
+  protect: exports.protect,
+  authMiddleware: exports.protect
+};
