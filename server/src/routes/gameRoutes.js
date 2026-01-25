@@ -41,7 +41,7 @@ router.get('/:gameCode', async (req, res) => {
 });
 
 // Get user's games
-router.get('/my-games', authMiddleware, async (req, res) => {
+router.get('/my-games', authMiddleware.protect, async (req, res) => {
   try {
     const games = await Game.find({
       $or: [
@@ -66,7 +66,7 @@ router.get('/my-games', authMiddleware, async (req, res) => {
 });
 
 // Create new game
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware.protect, async (req, res) => {
   try {
     const { name, config } = req.body;
     
@@ -98,7 +98,7 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // Join game
-router.post('/:gameCode/join', authMiddleware, async (req, res) => {
+router.post('/:gameCode/join', authMiddleware.protect, async (req, res) => {
   try {
     const { gameCode } = req.params;
     const { companyName } = req.body;
@@ -161,7 +161,7 @@ router.post('/:gameCode/join', authMiddleware, async (req, res) => {
 });
 
 // Start game
-router.post('/:gameCode/start', authMiddleware, async (req, res) => {
+router.post('/:gameCode/start', authMiddleware.protect, async (req, res) => {
   try {
     const { gameCode } = req.params;
     
