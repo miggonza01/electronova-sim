@@ -23,11 +23,12 @@ const productionConfig = {
       maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE) || 10,
       minPoolSize: parseInt(process.env.DB_MIN_POOL_SIZE) || 5,
       serverSelectionTimeoutMS: parseInt(process.env.DB_TIMEOUT) || 30000,
-      socketTimeoutMS: 45000,
-      bufferMaxEntries: 0,
-      bufferCommands: false,
-      useNewUrlParser: true,
-      useUnifiedTopology: true
+      socketTimeoutMS: 45000
+      // NOTA: Eliminadas opciones obsoletas para Mongoose 9+:
+      // bufferMaxEntries: 0,
+      // bufferCommands: false,
+      // useNewUrlParser: true,
+      // useUnifiedTopology: true
     }
   },
   

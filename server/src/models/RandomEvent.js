@@ -78,7 +78,7 @@ const RandomEventSchema = new mongoose.Schema({
 });
 
 // Índices para rendimiento
-RandomEventSchema.index({ eventId: 1 });
+// RandomEventSchema.index({ eventId: 1 }); // ELIMINADO: Índice duplicado (ya existe por 'unique: true')
 RandomEventSchema.index({ category: 1 });
 RandomEventSchema.index({ isActive: 1 });
 
