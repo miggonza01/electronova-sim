@@ -1,13 +1,18 @@
-# ============================================
-# FILE: client/vite.config.prod.js
-# VERSION: v2.4.0-production
-# PURPOSE: Production Vite configuration for ElectroNova v2.4.0 frontend
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
-# ============================================
+// ============================================
+// FILE: client/vite.config.prod.js
+// VERSION: v2.4.0-production
+// PURPOSE: Production Vite configuration for ElectroNova v2.4.0 frontend
+// RIGHTS: © Maribel Pinheiro & Miguel González | Ene-2026
+// ============================================
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 export default defineConfig({
   plugins: [react()],

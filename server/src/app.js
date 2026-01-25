@@ -87,15 +87,19 @@ app.use('/api/tools', toolsRoutes);
 app.use('/api', monitoringRoutes);
 
 // Serve static files in production
+// Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static('client/dist'));
   
-  // Catch-all handler for frontend routing - FIXED
-  app.get('*', (req, res, next) => {
-    // Skip API routes
+  // SOLUCIÓN: Usa app.use() en lugar de app.get('*')
+  app.use((req, res, next) => {
+    // Si es una ruta API, pasa al siguiente middleware
     if (req.path.startsWith('/api')) {
       return next();
     }
+    
+    // Si el archivo existe en client/dist, ya fue servido por express.static
+    // Si no existe, sirve index.html para SPA routing
     res.sendFile(require('path').join(__dirname, '../client/dist/index.html'));
   });
 }
