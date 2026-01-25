@@ -20,16 +20,31 @@ const generateToken = (id) => {
 exports.register = async (req, res) => {
     try {
         console.log("📝 Intento de registro:", req.body.email);
+        console.log("📝 Request body completo:", JSON.stringify(req.body));
         
         const { name, email, password, companyName, gameCode } = req.body;
+        
+        console.log("🔍 Variables extraídas:");
+        console.log("  name:", name);
+        console.log("  email:", email);
+        console.log("  companyName:", companyName);
+        console.log("  gameCode:", gameCode);
+        console.log("  gameCode type:", typeof gameCode);
+        console.log("  gameCode length:", gameCode ? gameCode.length : 'undefined');
 
         // 1. Validar Código de Sala
         if (!gameCode) {
+            console.log("❌ gameCode es undefined o null");
             return res.status(400).json({ message: 'El Código de Sala es obligatorio.' });
         }
 
+        console.log("🔍 Buscando juego con código:", JSON.stringify(gameCode));
+        console.log("🔍 Código uppercase:", gameCode.toUpperCase());
+        
         // Buscar el juego (Case insensitive)
         const game = await Game.findOne({ code: gameCode.toUpperCase() });
+        
+        console.log("🔍 Resultado búsqueda:", game ? 'ENCONTRADO' : 'NO ENCONTRADO');
         
         if (!game) {
             console.log("❌ Sala no encontrada:", gameCode);
