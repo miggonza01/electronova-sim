@@ -33,9 +33,9 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchCompanyData();
-    const SOCKET_URL = import.meta.env.VITE_API_URL 
+const SOCKET_URL = import.meta.env.VITE_API_URL 
       ? import.meta.env.VITE_API_URL.replace('/api', '') 
-      : 'http://localhost:5000';
+      : 'https://electronova-backend-mvp.onrender.com';
     const socket = io(SOCKET_URL);
     socket.emit('join_game_room', { email: 'student' });
     socket.on('round_changed', () => { fetchCompanyData(); });

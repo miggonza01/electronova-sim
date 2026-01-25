@@ -7,7 +7,7 @@
 import axios from 'axios';
 
 // Vite carga las variables según el modo (--mode v2 busca .env.v2)
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://electronova-backend-mvp.onrender.com/api';
 
 console.log('🔌 CONECTANDO A BACKEND V2:', API_URL);
 
