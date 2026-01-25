@@ -1,9 +1,9 @@
-# ============================================
-# FILE: server/src/config/production.js
-# VERSION: v2.4.0-production
-# PURPOSE: Production configuration for ElectroNova
-# RIGHTS: © Maribel Pinheiro & Miguel González | Dic-2025
-# ============================================
+// ============================================
+// FILE: server/src/config/production.js
+// VERSION: v2.4.0-production
+// PURPOSE: Production configuration for ElectroNova
+// RIGHTS: © Maribel Pinheiro & Miguel González | Ene-2026
+// ============================================
 
 const path = require('path');
 
