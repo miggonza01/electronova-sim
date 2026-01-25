@@ -10,6 +10,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'https://electronova-backend-mvp.onrender.com/api';
 
 console.log('🔌 CONECTANDO A BACKEND V2:', API_URL);
+console.log('🔍 FORZANDO DESPLIEGUE - VERSION:', new Date().toISOString());
 
 const api = axios.create({
     baseURL: API_URL,
