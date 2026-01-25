@@ -90,8 +90,8 @@ app.use('/api', monitoringRoutes);
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static('client/dist'));
   
-  // Catch-all handler for frontend routing
-  app.get('*', (req, res) => {
+// Catch-all handler for frontend routing
+  app.get('/*', (req, res) => {
     res.sendFile(require('path').join(__dirname, '../client/dist/index.html'));
   });
 }
@@ -112,7 +112,7 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('/*', (req, res) => {
   res.status(404).json({
     success: false,
     error: 'Route not found'
