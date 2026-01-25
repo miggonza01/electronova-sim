@@ -11,7 +11,7 @@ const {
     getDecisionHistory, // <--- CRÍTICO: Debe estar importado
     getResults 
 } = require('../controllers/decisionController');
-const { protect } = require('../middlewares/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 // Validar importación (Debugging)
 if (!saveDecision || !getCurrentDecision || !getDecisionHistory) {

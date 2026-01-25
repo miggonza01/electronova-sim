@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getMyFinancials, getFinancialsByRound } = require('../controllers/financialController');
-const { protect } = require('../middlewares/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 // Validar que el controlador exista (si no lo creamos en pasos anteriores, avísame)
 if (!getMyFinancials) {

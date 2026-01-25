@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { buyMarketResearch } = require('../controllers/toolsController');
-const { protect } = require('../middlewares/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 router.post('/market-research', protect, buyMarketResearch);
 

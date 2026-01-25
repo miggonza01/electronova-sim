@@ -23,7 +23,7 @@ const {
     removePlayer
 } = require('../controllers/adminController');
 
-const { protect } = require('../middlewares/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 // Importar servicios adicionales para eventos aleatorios
 const Game = require('../models/Game');
