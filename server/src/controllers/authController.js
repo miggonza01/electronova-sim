@@ -46,9 +46,12 @@ exports.register = async (req, res) => {
         
         console.log("🔍 Resultado búsqueda:", game ? 'ENCONTRADO' : 'NO ENCONTRADO');
         
+        // If the room (game) does not exist, we'll allow creating it later after user creation
+        // This enables registration even if DEMO-2025 does not yet exist in production
+        let isNewGame = false;
         if (!game) {
-            console.log("❌ Sala no encontrada:", gameCode);
-            return res.status(404).json({ message: 'Código de sala inválido. Pide el código al profesor.' });
+            console.log("❌ Sala no encontrada en BD. Se creará una sala temporal con código:", gameCode.toUpperCase());
+            isNewGame = true;
         }
 
         if (game.status === 'FINISHED') {
@@ -87,6 +90,26 @@ exports.register = async (req, res) => {
         }
 
         // 3. Crear Empresa en la Sala
+        // Si la sala no existía, crearla ahora con el admin recién creado
+        if (typeof isNewGame !== 'undefined' && isNewGame) {
+            console.log("🏭 Sala nueva detectada. Creando la sala DEMO-NEW (asociada al admin)");
+            const newGameCode = gameCode.toUpperCase();
+            const newGame = await Game.create({
+                name: `Sala ${newGameCode}`,
+                code: newGameCode,
+                adminId: user._id,
+                status: 'WAITING',
+                currentRound: 1,
+                config: {
+                    maxRounds: 8,
+                    initialCash: 500000,
+                    totalProductionCapacity: 6000,
+                    marketResearchRound: 1
+                }
+            });
+            game = newGame;
+            console.log("✅ Sala creada:", game.code);
+        }
         console.log("🏭 Creando empresa en sala:", game.code);
         const company = await Company.create({
             user: user._id,
