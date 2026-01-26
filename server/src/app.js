@@ -27,6 +27,8 @@ const productionConfig = require('./config/production');
 
 // Initialize Express app
 const app = express();
+// Trust reverse proxies (e.g., Render/Cloudflare) for correct IPs and rate limiting
+app.set('trust proxy', true);
 const server = createServer(app);
 
 // Initialize Socket.IO
