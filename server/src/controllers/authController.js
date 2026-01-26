@@ -46,32 +46,10 @@ exports.register = async (req, res) => {
         
         console.log("🔍 Resultado búsqueda:", game ? 'ENCONTRADO' : 'NO ENCONTRADO');
         
-        // If the room (game) does not exist, we'll allow creating it later after user creation
-        // This enables registration even if DEMO-2025 does not yet exist in production
-        let isNewGame = false;
+        // If the room (game) does not exist, reject the registration (no auto-create in prod)
         if (!game) {
-            console.log("❌ Sala no encontrada en BD. Se creará una sala temporal con código:", gameCode.toUpperCase());
-            isNewGame = true;
-        }
-        // Ensure 'game' variable is defined for downstream usage
-        if (isNewGame) {
-            // Create a new temporary game with the code provided
-            const newGameCode = gameCode.toUpperCase();
-            const newGame = await Game.create({
-                name: `Sala ${newGameCode}`,
-                code: newGameCode,
-                adminId: null,
-                status: 'WAITING',
-                currentRound: 1,
-                config: {
-                    maxRounds: 8,
-                    initialCash: 500000,
-                    totalProductionCapacity: 6000,
-                    marketResearchRound: 1
-                }
-            });
-            game = newGame;
-            console.log("✅ Sala creada automáticamente: ", newGameCode);
+            console.log("❌ Sala no encontrada en BD. Código de sala inválido: ", gameCode.toUpperCase());
+            return res.status(404).json({ message: 'Código de sala inválido. Pide el código al profesor.' });
         }
 
         if (game && game.status === 'FINISHED') {
