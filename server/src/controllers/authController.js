@@ -54,7 +54,7 @@ exports.register = async (req, res) => {
             isNewGame = true;
         }
 
-        if (game.status === 'FINISHED') {
+        if (game && game.status === 'FINISHED') {
             return res.status(400).json({ message: 'Esta sala ya ha finalizado.' });
         }
 
