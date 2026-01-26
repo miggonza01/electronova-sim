@@ -53,6 +53,26 @@ exports.register = async (req, res) => {
             console.log("❌ Sala no encontrada en BD. Se creará una sala temporal con código:", gameCode.toUpperCase());
             isNewGame = true;
         }
+        // Ensure 'game' variable is defined for downstream usage
+        if (isNewGame) {
+            // Create a new temporary game with the code provided
+            const newGameCode = gameCode.toUpperCase();
+            const newGame = await Game.create({
+                name: `Sala ${newGameCode}`,
+                code: newGameCode,
+                adminId: null,
+                status: 'WAITING',
+                currentRound: 1,
+                config: {
+                    maxRounds: 8,
+                    initialCash: 500000,
+                    totalProductionCapacity: 6000,
+                    marketResearchRound: 1
+                }
+            });
+            game = newGame;
+            console.log("✅ Sala creada automáticamente: ", newGameCode);
+        }
 
         if (game && game.status === 'FINISHED') {
             return res.status(400).json({ message: 'Esta sala ya ha finalizado.' });
